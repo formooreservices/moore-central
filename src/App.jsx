@@ -132,18 +132,43 @@ export default function App() {
             <button type="submit">Add</button>
           </form>
           <ul className="task-list">
-            {tasks.map((t) => (
-              <li key={t.id} className={t.completed ? 'done' : ''}>
-                <input
-                  type="checkbox"
-                  checked={t.completed}
-                  onChange={() => toggleTask(t)}
-                />
-                <span>{t.title}</span>
-                {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
-              </li>
-            ))}
+            {tasks
+              .filter((t) => t.source !== 'email')
+              .map((t) => (
+                <li key={t.id} className={t.completed ? 'done' : ''}>
+                  <input
+                    type="checkbox"
+                    checked={t.completed}
+                    onChange={() => toggleTask(t)}
+                  />
+                  <span>{t.title}</span>
+                  {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
+                </li>
+              ))}
           </ul>
+
+          {tasks.some((t) => t.source === 'email') && (
+            <>
+              <h2 className="section-sub">From email</h2>
+              <ul className="task-list email-tasks">
+                {tasks
+                  .filter((t) => t.source === 'email')
+                  .map((t) => (
+                    <li key={t.id} className={t.completed ? 'done' : ''}>
+                      <input
+                        type="checkbox"
+                        checked={t.completed}
+                        onChange={() => toggleTask(t)}
+                      />
+                      <span>{t.title}</span>
+                      {t.assigned_to && (
+                        <span className="assignee">{t.assigned_to}</span>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            </>
+          )}
         </section>
       </div>
     </div>
