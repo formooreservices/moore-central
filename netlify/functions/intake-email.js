@@ -1,17 +1,36 @@
 // POST /.netlify/functions/intake-email
-// Called by a Zapier (or Make.com) webhook step whenever a Hotmail email
-// matches your keyword filter. Creates a task from it automatically.
+// Called by a Make.com HTTP module whenever a CFISD email comes through.
+// Stores the full email (date, sender, subject, body) into the
+// cfisd_emails table, with a best-guess category based on keywords.
 //
-// Expected JSON body from Zapier's "Webhooks by Zapier" action, mapped from
-// the Outlook trigger fields:
+// Expected JSON body from Make's HTTP module:
 //   {
 //     "subject": "Permission slip due Friday",
-//     "received": "2026-09-03T14:22:00Z",   // optional, ISO date/time
-//     "from": "school@example.org",          // optional
-//     "keyword": "permission slip"           // optional, which filter matched
+//     "received": "2026-09-03T14:22:00Z",
+//     "from": "truittes@cfisd.net",
+//     "body": "Please return the signed permission slip by..."
 //   }
 
 import { createClient } from '@supabase/supabase-js';
+
+// Basic keyword -> category guesses. Adjust/expand freely; this runs on
+// subject + sender + body combined, case-insensitive.
+const CATEGORY_RULES = [
+  { category: 'Truitt', keywords: ['truitt'] },
+  { category: 'CyFalls', keywords: ['cy falls', 'cyfalls', 'cy-falls'] },
+  { category: 'Sports', keywords: ['athletics', 'practice', 'game', 'tournament', 'coach'] },
+  { category: 'School', keywords: ['homework', 'permission slip', 'pta', 'report card', 'school'] },
+];
+
+function guessCategory(text) {
+  const lower = text.toLowerCase();
+  for (const rule of CATEGORY_RULES) {
+    if (rule.keywords.some((k) => lower.includes(k))) {
+      return rule.category;
+    }
+  }
+  return null;
+}
 
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
@@ -20,9 +39,6 @@ export async function handler(event) {
 
   const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, INTAKE_SECRET } = process.env;
 
-  // Optional shared-secret check so random internet traffic can't write
-  // tasks. Set INTAKE_SECRET in Netlify env vars and add the same value
-  // as a query param on the Zapier webhook URL: ...intake-email?key=XXXX
   if (INTAKE_SECRET) {
     const providedKey = event.queryStringParameters?.key;
     if (providedKey !== INTAKE_SECRET) {
@@ -37,7 +53,7 @@ export async function handler(event) {
     return { statusCode: 400, body: 'Invalid JSON.' };
   }
 
-  const { subject, received, from, keyword } = body;
+  const { subject, received, from, body: emailBody } = body;
 
   if (!subject) {
     return { statusCode: 400, body: 'Missing "subject" field.' };
@@ -45,28 +61,27 @@ export async function handler(event) {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  const title = keyword
-    ? `${subject} (matched: ${keyword})`
-    : subject;
+  const category = guessCategory(`${subject} ${from || ''} ${emailBody || ''}`);
 
   const { data, error } = await supabase
-    .from('tasks')
+    .from('cfisd_emails')
     .insert({
-      title,
-      due_date: received ? received.slice(0, 10) : null,
-      source: 'email',
-      assigned_to: from || null,
+      received_date: received ? received.slice(0, 10) : null,
+      sender: from || null,
+      subject,
+      body: emailBody || null,
+      category,
     })
     .select()
     .single();
 
   if (error) {
-    return { statusCode: 500, body: `Failed to create task: ${error.message}` };
+    return { statusCode: 500, body: `Failed to store email: ${error.message}` };
   }
 
   return {
     statusCode: 201,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ task: data }),
+    body: JSON.stringify({ email: data }),
   };
 }

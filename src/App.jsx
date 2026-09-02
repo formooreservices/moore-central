@@ -11,9 +11,21 @@ function formatTime(iso) {
   });
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+const CATEGORY_ORDER = ['Truitt', 'CyFalls', 'Sports', 'School', 'Uncategorized'];
+
 export default function App() {
   const [events, setEvents] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [emails, setEmails] = useState([]);
+  const [expandedEmailId, setExpandedEmailId] = useState(null);
   const [newTask, setNewTask] = useState('');
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState([]);
@@ -24,6 +36,7 @@ export default function App() {
       fetch('/.netlify/functions/get-outlook-events').then((r) => r.json()),
       fetch('/.netlify/functions/get-google-events').then((r) => r.json()),
       fetch('/.netlify/functions/tasks').then((r) => r.json()),
+      fetch('/.netlify/functions/get-cfisd-emails').then((r) => r.json()),
     ]);
 
     const combined = [];
@@ -37,6 +50,9 @@ export default function App() {
 
     if (results[1].status === 'fulfilled' && results[1].value.events) {
       combined.push(...results[1].value.events);
+      if (results[1].value.calendarErrors?.length) {
+        errs.push(...results[1].value.calendarErrors);
+      }
     } else {
       errs.push('Google calendar not connected yet.');
     }
@@ -46,6 +62,10 @@ export default function App() {
 
     if (results[2].status === 'fulfilled' && results[2].value.tasks) {
       setTasks(results[2].value.tasks);
+    }
+
+    if (results[3].status === 'fulfilled' && results[3].value.emails) {
+      setEmails(results[3].value.emails);
     }
 
     setErrors(errs);
@@ -76,6 +96,20 @@ export default function App() {
     const data = await res.json();
     setTasks((t) => t.map((x) => (x.id === task.id ? data.task : x)));
   }
+
+  // Group emails by category, preserving a sensible display order and
+  // putting anything uncategorized last.
+  const emailsByCategory = emails.reduce((acc, e) => {
+    const cat = e.category || 'Uncategorized';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(e);
+    return acc;
+  }, {});
+  const categoryKeys = Object.keys(emailsByCategory).sort((a, b) => {
+    const ai = CATEGORY_ORDER.indexOf(a);
+    const bi = CATEGORY_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
 
   return (
     <div className="app">
@@ -114,7 +148,7 @@ export default function App() {
                 <li key={e.id} className={`event-row ${e.source}`}>
                   <span className="event-title">{e.title || 'Untitled event'}</span>
                   <span className="event-time">{formatTime(e.start)}</span>
-                  <span className="event-source">{e.source}</span>
+                  <span className="event-source">{e.calendar || e.source}</span>
                 </li>
               ))}
             </ul>
@@ -132,45 +166,54 @@ export default function App() {
             <button type="submit">Add</button>
           </form>
           <ul className="task-list">
-            {tasks
-              .filter((t) => t.source !== 'email')
-              .map((t) => (
-                <li key={t.id} className={t.completed ? 'done' : ''}>
-                  <input
-                    type="checkbox"
-                    checked={t.completed}
-                    onChange={() => toggleTask(t)}
-                  />
-                  <span>{t.title}</span>
-                  {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
-                </li>
-              ))}
+            {tasks.map((t) => (
+              <li key={t.id} className={t.completed ? 'done' : ''}>
+                <input
+                  type="checkbox"
+                  checked={t.completed}
+                  onChange={() => toggleTask(t)}
+                />
+                <span>{t.title}</span>
+                {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
+              </li>
+            ))}
           </ul>
-
-          {tasks.some((t) => t.source === 'email') && (
-            <>
-              <h2 className="section-sub">From email</h2>
-              <ul className="task-list email-tasks">
-                {tasks
-                  .filter((t) => t.source === 'email')
-                  .map((t) => (
-                    <li key={t.id} className={t.completed ? 'done' : ''}>
-                      <input
-                        type="checkbox"
-                        checked={t.completed}
-                        onChange={() => toggleTask(t)}
-                      />
-                      <span>{t.title}</span>
-                      {t.assigned_to && (
-                        <span className="assignee">{t.assigned_to}</span>
-                      )}
-                    </li>
-                  ))}
-              </ul>
-            </>
-          )}
         </section>
       </div>
+
+      <section className="emails-section">
+        <h2>Emails from CFISD</h2>
+        {emails.length === 0 ? (
+          <p className="muted">No CFISD emails yet.</p>
+        ) : (
+          categoryKeys.map((cat) => (
+            <div key={cat} className="email-category">
+              <h3>{cat}</h3>
+              <ul className="cfisd-email-list">
+                {emailsByCategory[cat].map((email) => (
+                  <li key={email.id} className="cfisd-email">
+                    <div
+                      className="cfisd-email-row"
+                      onClick={() =>
+                        setExpandedEmailId(
+                          expandedEmailId === email.id ? null : email.id
+                        )
+                      }
+                    >
+                      <span className="cfisd-date">{formatDate(email.received_date)}</span>
+                      <span className="cfisd-sender">{email.sender || 'Unknown sender'}</span>
+                      <span className="cfisd-subject">{email.subject}</span>
+                    </div>
+                    {expandedEmailId === email.id && email.body && (
+                      <div className="cfisd-body">{email.body}</div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
+      </section>
     </div>
   );
 }

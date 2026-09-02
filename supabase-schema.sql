@@ -14,5 +14,15 @@ create table if not exists oauth_tokens (
   updated_at timestamp default now()
 );
 
+create table if not exists cfisd_emails (
+  id uuid primary key default gen_random_uuid(),
+  received_date date,
+  sender text,
+  subject text,
+  body text,
+  category text,                        -- e.g. 'Truitt', 'CyFalls', 'Sports', 'School' — nullable for now
+  created_at timestamp default now()
+);
+
 -- Run this in the Supabase SQL editor once, then grab your project URL
 -- and service_role key from Project Settings > API for Netlify env vars.
