@@ -1,38 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
-
-async function getGoogleAccessToken() {
-  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
-          SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const { data, error } = await supabase
-    .from('oauth_tokens')
-    .select('refresh_token')
-    .eq('provider', 'google')
-    .single();
-
-  if (error || !data) {
-    throw new Error('No stored Google refresh token. Connect the account first.');
-  }
-
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      refresh_token: data.refresh_token,
-      grant_type: 'refresh_token',
-    }),
-  });
-
-  const tokenData = await res.json();
-  if (!res.ok) throw new Error(tokenData.error_description || 'Token refresh failed.');
-  return tokenData.access_token;
-}
+import { getGoogleAccessToken } from './lib/googleAuth.js';
 
 // Parses the GOOGLE_CALENDARS env var, formatted as:
-//   "Household:primary,Dennis School:abc123@group.calendar.google.com,Dennis Athletics:def456@group.calendar.google.com"
+//   "Household:primary,Dennis School:abc123@group.calendar.google.com,..."
 // Falls back to just "primary" if not set, so the app still works before
 // this is configured.
 function parseCalendarList() {
@@ -62,8 +31,6 @@ async function fetchEventsForCalendar(accessToken, calendarId, label, timeMin, t
   const data = await res.json();
 
   if (!res.ok) {
-    // Don't fail the whole request if one calendar has an issue —
-    // just skip it and note the problem.
     return { label, error: data.error?.message || 'Failed to fetch', events: [] };
   }
 
