@@ -152,6 +152,47 @@ export default function App() {
     setEmails((all) => all.map((e) => (e.id === email.id ? data.email : e)));
   }
 
+  async function handleCalendarItemToggle(email, checked) {
+    if (!checked) {
+      // Just unchecking — no event to create, plain update.
+      updateEmailField(email, 'calendar_item', false);
+      return;
+    }
+
+    const defaultDate = email.received_date || new Date().toISOString().slice(0, 10);
+    const dateInput = window.prompt(
+      `Add "${email.subject}" to Google Calendar.\n\nDate (YYYY-MM-DD):`,
+      defaultDate
+    );
+    if (!dateInput) return; // cancelled
+
+    const timeInput = window.prompt(
+      'Time (HH:MM, 24-hour) — leave blank for an all-day event:',
+      ''
+    );
+
+    try {
+      const res = await fetch('/.netlify/functions/create-calendar-event', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: email.subject,
+          description: email.body || '',
+          date: dateInput.trim(),
+          time: timeInput?.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        alert(`Couldn't create the calendar event: ${errText}`);
+        return;
+      }
+      await updateEmailField(email, 'calendar_item', true);
+      loadEverything(); // refresh Upcoming events to show the new one
+    } catch (err) {
+      alert(`Couldn't create the calendar event: ${err.message}`);
+    }
+  }
+
   const categories = useMemo(() => {
     const set = new Set(emails.map((e) => e.category || 'Uncategorized'));
     return ['All', ...CATEGORY_ORDER.filter((c) => set.has(c)), ...[...set].filter((c) => !CATEGORY_ORDER.includes(c))];
@@ -395,7 +436,7 @@ export default function App() {
                         type="checkbox"
                         checked={!!email.calendar_item}
                         onChange={(e) =>
-                          updateEmailField(email, 'calendar_item', e.target.checked)
+                          handleCalendarItemToggle(email, e.target.checked)
                         }
                       />
                     </td>
