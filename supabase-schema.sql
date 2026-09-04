@@ -21,6 +21,9 @@ create table if not exists cfisd_emails (
   subject text,
   body text,
   category text,                        -- e.g. 'Truitt', 'CyFalls', 'Sports', 'School' — nullable for now
+  checked boolean default false,
+  action_item boolean default false,
+  calendar_item boolean default false,
   created_at timestamp default now()
 );
 

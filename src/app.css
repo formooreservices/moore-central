@@ -37,29 +37,52 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 .task-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .task-list li.done span:first-of-type { text-decoration: line-through; color: var(--ink-soft); }
 .assignee { margin-left: auto; font-size: 11px; background: var(--sage-light); color: var(--sage); padding: 2px 8px; border-radius: 10px; }
+.task-date { font-size: 11px; color: var(--ink-soft); margin-left: 8px; white-space: nowrap; }
+.task-edit-input { flex: 1; padding: 4px 8px; border: 1px solid var(--sage); border-radius: 6px; font-family: inherit; font-size: 14px; }
+.icon-btn {
+  background: none; border: none; cursor: pointer; color: var(--ink-soft);
+  font-size: 13px; padding: 2px 6px; border-radius: 6px; margin-left: 2px;
+}
+.icon-btn:hover { background: var(--sage-light); color: var(--sage); }
+.icon-btn.danger:hover { background: #FCEAD3; color: var(--danger); }
 
 .emails-section { margin-top: 24px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
-.email-category { margin-bottom: 18px; }
-.email-category:last-child { margin-bottom: 0; }
-.email-category h3 {
-  font-family: 'Fraunces', serif; font-weight: 500; font-size: 14px;
-  color: var(--sage); text-transform: uppercase; letter-spacing: .04em;
-  margin: 0 0 8px;
+.emails-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+.emails-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.emails-toolbar select, .email-search {
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+  font-family: inherit; font-size: 13px;
 }
-.cfisd-email-list { list-style: none; padding: 0; margin: 0; }
-.cfisd-email { border-bottom: 1px solid var(--line); }
-.cfisd-email:last-child { border-bottom: none; }
-.cfisd-email-row {
-  display: grid; grid-template-columns: 70px 160px 1fr;
-  gap: 12px; padding: 10px 4px; font-size: 14px; cursor: pointer;
-  align-items: baseline;
+.email-search { min-width: 200px; }
+.toolbar-btn {
+  background: var(--sage); color: #fff; border: none; border-radius: 8px;
+  padding: 6px 14px; font-size: 13px; cursor: pointer;
 }
-.cfisd-email-row:hover { background: var(--sage-light); border-radius: 6px; }
-.cfisd-date { color: var(--ink-soft); font-size: 12px; }
-.cfisd-sender { color: var(--ink-soft); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cfisd-subject { font-weight: 500; }
-.cfisd-body {
-  padding: 4px 4px 14px 82px; font-size: 13px; color: var(--ink-soft);
-  white-space: pre-wrap; line-height: 1.5;
+.toolbar-btn:hover { opacity: 0.9; }
+
+.cfisd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cfisd-table th {
+  text-align: left; padding: 8px 10px; color: var(--ink-soft);
+  font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .03em; border-bottom: 2px solid var(--line);
+}
+.cfisd-table th.sortable { cursor: pointer; user-select: none; }
+.cfisd-table th.sortable:hover { color: var(--sage); }
+.cfisd-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.cfisd-row { cursor: pointer; }
+.cfisd-row:hover { background: var(--sage-light); }
+.cfisd-table .truncate { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.category-pill {
+  font-size: 11px; background: var(--marigold-light); color: #854F0B;
+  padding: 2px 10px; border-radius: 12px; white-space: nowrap;
+}
+.cfisd-body-row td {
+  background: #FBF7F0; font-size: 13px; color: var(--ink-soft);
+  white-space: pre-wrap; line-height: 1.5; padding: 12px 20px;
+}
+
+@media print {
+  header, .connect-row, .notice, .columns, .emails-toolbar { display: none !important; }
+  .emails-section { border: none; padding: 0; }
 }
 .section-sub { font-size: 14px; margin: 18px 0 10px; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 14px; }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import './app.css';
 
 function formatTime(iso) {
@@ -19,6 +19,14 @@ function formatDate(dateStr) {
   });
 }
 
+function formatDateTime(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 const CATEGORY_ORDER = ['Truitt', 'CyFalls', 'Sports', 'School', 'Uncategorized'];
 
 export default function App() {
@@ -27,8 +35,16 @@ export default function App() {
   const [emails, setEmails] = useState([]);
   const [expandedEmailId, setExpandedEmailId] = useState(null);
   const [newTask, setNewTask] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editingTaskTitle, setEditingTaskTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState([]);
+
+  // Email table filter/sort state
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [searchText, setSearchText] = useState('');
+  const [sortField, setSortField] = useState('received_date');
+  const [sortDir, setSortDir] = useState('desc');
 
   async function loadEverything() {
     setLoading(true);
@@ -76,6 +92,8 @@ export default function App() {
     loadEverything();
   }, []);
 
+  // ---------- Tasks ----------
+
   async function addTask(e) {
     e.preventDefault();
     if (!newTask.trim()) return;
@@ -97,19 +115,106 @@ export default function App() {
     setTasks((t) => t.map((x) => (x.id === task.id ? data.task : x)));
   }
 
-  // Group emails by category, preserving a sensible display order and
-  // putting anything uncategorized last.
-  const emailsByCategory = emails.reduce((acc, e) => {
-    const cat = e.category || 'Uncategorized';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(e);
-    return acc;
-  }, {});
-  const categoryKeys = Object.keys(emailsByCategory).sort((a, b) => {
-    const ai = CATEGORY_ORDER.indexOf(a);
-    const bi = CATEGORY_ORDER.indexOf(b);
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-  });
+  async function deleteTask(task) {
+    if (!confirm(`Delete "${task.title}"?`)) return;
+    await fetch('/.netlify/functions/tasks', {
+      method: 'DELETE',
+      body: JSON.stringify({ id: task.id }),
+    });
+    setTasks((t) => t.filter((x) => x.id !== task.id));
+  }
+
+  function startEditTask(task) {
+    setEditingTaskId(task.id);
+    setEditingTaskTitle(task.title);
+  }
+
+  async function saveEditTask(task) {
+    const trimmed = editingTaskTitle.trim();
+    if (!trimmed) return;
+    const res = await fetch('/.netlify/functions/tasks', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: task.id, title: trimmed }),
+    });
+    const data = await res.json();
+    setTasks((t) => t.map((x) => (x.id === task.id ? data.task : x)));
+    setEditingTaskId(null);
+  }
+
+  // ---------- CFISD Emails ----------
+
+  async function updateEmailField(email, field, value) {
+    const res = await fetch('/.netlify/functions/update-cfisd-email', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: email.id, [field]: value }),
+    });
+    const data = await res.json();
+    setEmails((all) => all.map((e) => (e.id === email.id ? data.email : e)));
+  }
+
+  const categories = useMemo(() => {
+    const set = new Set(emails.map((e) => e.category || 'Uncategorized'));
+    return ['All', ...CATEGORY_ORDER.filter((c) => set.has(c)), ...[...set].filter((c) => !CATEGORY_ORDER.includes(c))];
+  }, [emails]);
+
+  const filteredSortedEmails = useMemo(() => {
+    let list = emails;
+    if (categoryFilter !== 'All') {
+      list = list.filter((e) => (e.category || 'Uncategorized') === categoryFilter);
+    }
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase();
+      list = list.filter(
+        (e) =>
+          e.subject?.toLowerCase().includes(q) ||
+          e.sender?.toLowerCase().includes(q) ||
+          e.body?.toLowerCase().includes(q)
+      );
+    }
+    const sorted = [...list].sort((a, b) => {
+      let av = a[sortField] ?? '';
+      let bv = b[sortField] ?? '';
+      if (sortField === 'received_date') {
+        av = av ? new Date(av).getTime() : 0;
+        bv = bv ? new Date(bv).getTime() : 0;
+      } else {
+        av = String(av).toLowerCase();
+        bv = String(bv).toLowerCase();
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [emails, categoryFilter, searchText, sortField, sortDir]);
+
+  function toggleSort(field) {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  }
+
+  function sortArrow(field) {
+    if (sortField !== field) return '';
+    return sortDir === 'asc' ? ' ▲' : ' ▼';
+  }
+
+  function printEmails() {
+    window.print();
+  }
+
+  function emailEmails() {
+    const lines = filteredSortedEmails.map(
+      (e) =>
+        `${formatDate(e.received_date)} | ${e.sender || ''} | ${e.subject || ''} | ${e.category || 'Uncategorized'}`
+    );
+    const body = encodeURIComponent(lines.join('\n'));
+    const subject = encodeURIComponent('CFISD Emails from MooreCentral');
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
 
   return (
     <div className="app">
@@ -173,8 +278,31 @@ export default function App() {
                   checked={t.completed}
                   onChange={() => toggleTask(t)}
                 />
-                <span>{t.title}</span>
+                {editingTaskId === t.id ? (
+                  <input
+                    className="task-edit-input"
+                    value={editingTaskTitle}
+                    onChange={(e) => setEditingTaskTitle(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && saveEditTask(t)}
+                    autoFocus
+                  />
+                ) : (
+                  <span>{t.title}</span>
+                )}
                 {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
+                <span className="task-date">{formatDateTime(t.created_at)}</span>
+                {editingTaskId === t.id ? (
+                  <button className="icon-btn" onClick={() => saveEditTask(t)} title="Save">
+                    ✓
+                  </button>
+                ) : (
+                  <button className="icon-btn" onClick={() => startEditTask(t)} title="Edit">
+                    ✎
+                  </button>
+                )}
+                <button className="icon-btn danger" onClick={() => deleteTask(t)} title="Delete">
+                  ✕
+                </button>
               </li>
             ))}
           </ul>
@@ -182,36 +310,105 @@ export default function App() {
       </div>
 
       <section className="emails-section">
-        <h2>Emails from CFISD</h2>
-        {emails.length === 0 ? (
-          <p className="muted">No CFISD emails yet.</p>
+        <div className="emails-header">
+          <h2>Emails from CFISD</h2>
+          <div className="emails-toolbar">
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <input
+              className="email-search"
+              placeholder="Search subject, sender, body…"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+            <button className="toolbar-btn" onClick={printEmails}>
+              Print
+            </button>
+            <button className="toolbar-btn" onClick={emailEmails}>
+              Email
+            </button>
+          </div>
+        </div>
+
+        {filteredSortedEmails.length === 0 ? (
+          <p className="muted">No CFISD emails match.</p>
         ) : (
-          categoryKeys.map((cat) => (
-            <div key={cat} className="email-category">
-              <h3>{cat}</h3>
-              <ul className="cfisd-email-list">
-                {emailsByCategory[cat].map((email) => (
-                  <li key={email.id} className="cfisd-email">
-                    <div
-                      className="cfisd-email-row"
-                      onClick={() =>
-                        setExpandedEmailId(
-                          expandedEmailId === email.id ? null : email.id
-                        )
-                      }
-                    >
-                      <span className="cfisd-date">{formatDate(email.received_date)}</span>
-                      <span className="cfisd-sender">{email.sender || 'Unknown sender'}</span>
-                      <span className="cfisd-subject">{email.subject}</span>
-                    </div>
-                    {expandedEmailId === email.id && email.body && (
-                      <div className="cfisd-body">{email.body}</div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
+          <table className="cfisd-table">
+            <thead>
+              <tr>
+                <th onClick={() => toggleSort('category')} className="sortable">
+                  Category{sortArrow('category')}
+                </th>
+                <th onClick={() => toggleSort('received_date')} className="sortable">
+                  Date{sortArrow('received_date')}
+                </th>
+                <th onClick={() => toggleSort('sender')} className="sortable">
+                  From{sortArrow('sender')}
+                </th>
+                <th onClick={() => toggleSort('subject')} className="sortable">
+                  Subject{sortArrow('subject')}
+                </th>
+                <th>Checked</th>
+                <th>Action Item</th>
+                <th>Calendar Item</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredSortedEmails.map((email) => (
+                <>
+                  <tr
+                    key={email.id}
+                    className="cfisd-row"
+                    onClick={() =>
+                      setExpandedEmailId(expandedEmailId === email.id ? null : email.id)
+                    }
+                  >
+                    <td>
+                      <span className="category-pill">{email.category || 'Uncategorized'}</span>
+                    </td>
+                    <td>{formatDate(email.received_date)}</td>
+                    <td className="truncate">{email.sender || 'Unknown sender'}</td>
+                    <td className="truncate">{email.subject}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={!!email.checked}
+                        onChange={(e) => updateEmailField(email, 'checked', e.target.checked)}
+                      />
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={!!email.action_item}
+                        onChange={(e) =>
+                          updateEmailField(email, 'action_item', e.target.checked)
+                        }
+                      />
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={!!email.calendar_item}
+                        onChange={(e) =>
+                          updateEmailField(email, 'calendar_item', e.target.checked)
+                        }
+                      />
+                    </td>
+                  </tr>
+                  {expandedEmailId === email.id && (
+                    <tr className="cfisd-body-row">
+                      <td colSpan={7}>{email.body || 'No body content.'}</td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
     </div>
