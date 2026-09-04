@@ -32,6 +32,16 @@ function guessCategory(text) {
   return null;
 }
 
+// Handles ISO strings, RFC 2822 strings, and other JS-parseable formats.
+// Falls back to null if nothing usable comes through, rather than crashing
+// the whole request on a bad date string.
+function parseToDateOnly(dateInput) {
+  if (!dateInput) return null;
+  const parsed = new Date(dateInput);
+  if (isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method not allowed.' };
@@ -66,7 +76,7 @@ export async function handler(event) {
   const { data, error } = await supabase
     .from('cfisd_emails')
     .insert({
-      received_date: received ? received.slice(0, 10) : null,
+      received_date: parseToDateOnly(received),
       sender: from || null,
       subject,
       body: emailBody || null,
