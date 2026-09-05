@@ -19,6 +19,15 @@ h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 
 .date-range-label { font-size: 12px; color: var(--ink-soft); }
 .external-link { font-size: 12px; color: var(--sage); text-decoration: none; font-weight: 500; }
 .external-link:hover { text-decoration: underline; }
+.upcoming-toolbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+}
+.upcoming-toolbar select {
+  padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+  font-family: inherit; font-size: 12px;
+}
+.toggle-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); cursor: pointer; }
 .sub { color: var(--ink-soft); margin: 4px 0 20px; }
 .connect-row { display: flex; gap: 10px; margin-bottom: 20px; }
 .connect-btn {
@@ -99,7 +108,7 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 }
 
 @media print {
-  header, .connect-row, .notice, .columns, .emails-toolbar { display: none !important; }
+  header, .connect-row, .notice, .emails-toolbar, .upcoming-toolbar, .external-link, .date-range-label { display: none !important; }
   .emails-section { border: none; padding: 0; }
   .row-actions { display: none; }
 }

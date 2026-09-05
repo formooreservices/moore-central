@@ -47,6 +47,8 @@ export default function App() {
   const [sortField, setSortField] = useState('received_date');
   const [sortDir, setSortDir] = useState('desc');
   const [showArchived, setShowArchived] = useState(false);
+  const [calendarFilter, setCalendarFilter] = useState('All');
+  const [hideSchoolWork, setHideSchoolWork] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingSenderLabelId, setEditingSenderLabelId] = useState(null);
   const [senderLabelDraft, setSenderLabelDraft] = useState('');
@@ -262,6 +264,46 @@ export default function App() {
     return `${now.toLocaleDateString(undefined, opts)} – ${weekOut.toLocaleDateString(undefined, opts)}`;
   }, []);
 
+  // Calendars whose label suggests school or work — used by "Hide School & Work".
+  function isSchoolOrWork(calendarLabel) {
+    if (!calendarLabel) return false;
+    const lower = calendarLabel.toLowerCase();
+    return (
+      lower.includes('school') ||
+      lower.includes('mooretechservices') ||
+      lower.includes('work')
+    );
+  }
+
+  const calendarNames = useMemo(() => {
+    const set = new Set(events.map((e) => e.calendar || e.source));
+    return ['All', ...set];
+  }, [events]);
+
+  const filteredEvents = useMemo(() => {
+    let list = events;
+    if (calendarFilter !== 'All') {
+      list = list.filter((e) => (e.calendar || e.source) === calendarFilter);
+    }
+    if (hideSchoolWork) {
+      list = list.filter((e) => !isSchoolOrWork(e.calendar));
+    }
+    return list;
+  }, [events, calendarFilter, hideSchoolWork]);
+
+  function printEvents() {
+    window.print();
+  }
+
+  function emailEvents() {
+    const lines = filteredEvents.map(
+      (e) => `${formatTime(e.start)} | ${e.title || 'Untitled event'} | ${e.calendar || e.source}`
+    );
+    const body = encodeURIComponent(lines.join('\n'));
+    const subject = encodeURIComponent('Upcoming events from MooreCentral');
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
+
   const categories = useMemo(() => {
     const set = new Set(emails.map((e) => e.category || 'Uncategorized'));
     return ['All', ...CATEGORY_ORDER.filter((c) => set.has(c)), ...[...set].filter((c) => !CATEGORY_ORDER.includes(c))];
@@ -366,13 +408,36 @@ export default function App() {
               </a>
             </div>
           </div>
+          <div className="upcoming-toolbar">
+            <select value={calendarFilter} onChange={(e) => setCalendarFilter(e.target.value)}>
+              {calendarNames.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={hideSchoolWork}
+                onChange={(e) => setHideSchoolWork(e.target.checked)}
+              />
+              Hide School &amp; Work
+            </label>
+            <button className="toolbar-btn" onClick={printEvents}>
+              Print
+            </button>
+            <button className="toolbar-btn" onClick={emailEvents}>
+              Email
+            </button>
+          </div>
           {loading ? (
             <p className="muted">Loading…</p>
-          ) : events.length === 0 ? (
+          ) : filteredEvents.length === 0 ? (
             <p className="muted">Nothing on the calendar this week.</p>
           ) : (
             <ul className="event-list">
-              {events.map((e) => (
+              {filteredEvents.map((e) => (
                 <li key={e.id} className={`event-row ${e.source}`}>
                   <span className="event-title">{e.title || 'Untitled event'}</span>
                   <span className="event-time">{formatTime(e.start)}</span>
