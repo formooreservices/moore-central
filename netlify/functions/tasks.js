@@ -42,6 +42,13 @@ export async function handler(event) {
     const body = JSON.parse(event.body || '{}');
     if (!body.id) return { statusCode: 400, body: 'Missing task id.' };
     const { id, ...fields } = body;
+
+    // Automatically stamp/clear completed_at when the completed flag changes,
+    // so the frontend can show "completed on" dates without extra calls.
+    if ('completed' in fields) {
+      fields.completed_at = fields.completed ? new Date().toISOString() : null;
+    }
+
     const { data, error } = await supabase
       .from('tasks')
       .update(fields)

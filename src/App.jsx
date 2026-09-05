@@ -49,6 +49,8 @@ export default function App() {
   const [showArchived, setShowArchived] = useState(false);
   const [calendarFilter, setCalendarFilter] = useState('All');
   const [hideSchoolWork, setHideSchoolWork] = useState(false);
+  const [taskFilter, setTaskFilter] = useState('active'); // 'active' | 'week' | 'priority' | 'all'
+  const [showCompleted, setShowCompleted] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingSenderLabelId, setEditingSenderLabelId] = useState(null);
   const [senderLabelDraft, setSenderLabelDraft] = useState('');
@@ -136,6 +138,15 @@ export default function App() {
     const res = await fetch('/.netlify/functions/tasks', {
       method: 'PATCH',
       body: JSON.stringify({ id: task.id, completed: !task.completed }),
+    });
+    const data = await res.json();
+    setTasks((t) => t.map((x) => (x.id === task.id ? data.task : x)));
+  }
+
+  async function togglePriority(task) {
+    const res = await fetch('/.netlify/functions/tasks', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: task.id, priority: !task.priority }),
     });
     const data = await res.json();
     setTasks((t) => t.map((x) => (x.id === task.id ? data.task : x)));
@@ -304,6 +315,54 @@ export default function App() {
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   }
 
+  const visibleTasks = useMemo(() => {
+    // "View Completed" is its own mode — shows only completed tasks.
+    if (showCompleted) {
+      return tasks
+        .filter((t) => t.completed)
+        .sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0));
+    }
+
+    const now = new Date();
+    const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    let base = tasks.filter((t) => !t.completed);
+
+    if (taskFilter === 'week') {
+      base = base.filter((t) => {
+        if (!t.due_date) return false;
+        const d = new Date(t.due_date);
+        return d <= weekOut;
+      });
+    } else if (taskFilter === 'priority') {
+      base = base.filter((t) => t.priority);
+    }
+    // 'active' and 'all' both just show all non-completed tasks here;
+    // 'all' exists as a plain no-filter option for clarity in the dropdown.
+
+    // Priority tasks always show regardless of the active filter, pinned
+    // at the top, so nothing important gets buried.
+    const priorityTasks = tasks.filter((t) => !t.completed && t.priority);
+    const rest = base.filter((t) => !t.priority);
+    const pinnedIds = new Set(priorityTasks.map((t) => t.id));
+    const combined = [...priorityTasks, ...rest.filter((t) => !pinnedIds.has(t.id))];
+
+    return combined;
+  }, [tasks, taskFilter, showCompleted]);
+
+  function printTasks() {
+    window.print();
+  }
+
+  function emailTasks() {
+    const lines = visibleTasks.map(
+      (t) => `${t.completed ? '[done] ' : ''}${t.title}${t.priority ? ' (priority)' : ''}`
+    );
+    const body = encodeURIComponent(lines.join('\n'));
+    const subject = encodeURIComponent('Task list from MooreCentral');
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
+
   const categories = useMemo(() => {
     const set = new Set(emails.map((e) => e.category || 'Uncategorized'));
     return ['All', ...CATEGORY_ORDER.filter((c) => set.has(c)), ...[...set].filter((c) => !CATEGORY_ORDER.includes(c))];
@@ -449,50 +508,92 @@ export default function App() {
         </section>
 
         <section>
-          <h2>Task list</h2>
-          <form onSubmit={addTask} className="task-form">
-            <input
-              value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
-              placeholder="Add a task"
-            />
-            <button type="submit">Add</button>
-          </form>
+          <div className="section-header-row">
+            <h2>{showCompleted ? 'Completed Tasks' : 'Task list'}</h2>
+          </div>
+          <div className="upcoming-toolbar">
+            {!showCompleted && (
+              <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}>
+                <option value="active">Active</option>
+                <option value="week">This Week</option>
+                <option value="priority">Priority</option>
+                <option value="all">All</option>
+              </select>
+            )}
+            <button className="toolbar-btn" onClick={printTasks}>
+              Print
+            </button>
+            <button className="toolbar-btn" onClick={emailTasks}>
+              Email
+            </button>
+            <button
+              className={`toolbar-btn ${showCompleted ? 'toolbar-btn-active' : 'toolbar-btn-outline'}`}
+              onClick={() => setShowCompleted((s) => !s)}
+            >
+              {showCompleted ? 'Back to Active' : 'View Completed'}
+            </button>
+          </div>
+          {!showCompleted && (
+            <form onSubmit={addTask} className="task-form">
+              <input
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="Add a task"
+              />
+              <button type="submit">Add</button>
+            </form>
+          )}
           <ul className="task-list">
-            {tasks.map((t) => (
-              <li key={t.id} className={t.completed ? 'done' : ''}>
-                <input
-                  type="checkbox"
-                  checked={t.completed}
-                  onChange={() => toggleTask(t)}
-                />
-                {editingTaskId === t.id ? (
+            {visibleTasks.length === 0 ? (
+              <p className="muted">
+                {showCompleted ? 'No completed tasks yet.' : 'Nothing here — nice and clear.'}
+              </p>
+            ) : (
+              visibleTasks.map((t) => (
+                <li key={t.id} className={t.completed ? 'done' : ''}>
                   <input
-                    className="task-edit-input"
-                    value={editingTaskTitle}
-                    onChange={(e) => setEditingTaskTitle(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && saveEditTask(t)}
-                    autoFocus
+                    type="checkbox"
+                    checked={t.completed}
+                    onChange={() => toggleTask(t)}
                   />
-                ) : (
-                  <span>{t.title}</span>
-                )}
-                {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
-                <span className="task-date">{formatDateTime(t.created_at)}</span>
-                {editingTaskId === t.id ? (
-                  <button className="icon-btn" onClick={() => saveEditTask(t)} title="Save">
-                    ✓
+                  <button
+                    className={`icon-btn star ${t.priority ? 'star-active' : ''}`}
+                    onClick={() => togglePriority(t)}
+                    title="Toggle priority"
+                  >
+                    ★
                   </button>
-                ) : (
-                  <button className="icon-btn" onClick={() => startEditTask(t)} title="Edit">
-                    ✎
+                  {editingTaskId === t.id ? (
+                    <input
+                      className="task-edit-input"
+                      value={editingTaskTitle}
+                      onChange={(e) => setEditingTaskTitle(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEditTask(t)}
+                      autoFocus
+                    />
+                  ) : (
+                    <span>{t.title}</span>
+                  )}
+                  {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
+                  <span className="task-date">
+                    {t.completed ? formatDateTime(t.completed_at) : formatDateTime(t.created_at)}
+                  </span>
+                  {!showCompleted &&
+                    (editingTaskId === t.id ? (
+                      <button className="icon-btn" onClick={() => saveEditTask(t)} title="Save">
+                        ✓
+                      </button>
+                    ) : (
+                      <button className="icon-btn" onClick={() => startEditTask(t)} title="Edit">
+                        ✎
+                      </button>
+                    ))}
+                  <button className="icon-btn danger" onClick={() => deleteTask(t)} title="Delete">
+                    ✕
                   </button>
-                )}
-                <button className="icon-btn danger" onClick={() => deleteTask(t)} title="Delete">
-                  ✕
-                </button>
-              </li>
-            ))}
+                </li>
+              ))
+            )}
           </ul>
         </section>
       </div>

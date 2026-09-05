@@ -60,6 +60,9 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 }
 .icon-btn:hover { background: var(--sage-light); color: var(--sage); }
 .icon-btn.danger:hover { background: #FCEAD3; color: var(--danger); }
+.icon-btn.star { color: var(--line); font-size: 15px; }
+.icon-btn.star.star-active { color: var(--marigold); }
+.icon-btn.star:hover { color: var(--marigold); background: var(--marigold-light); }
 
 .emails-section { margin-top: 24px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
 .emails-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }

@@ -4,6 +4,8 @@ create table if not exists tasks (
   due_date date,
   source text default 'manual',        -- 'manual' | 'email' | 'flyer'
   completed boolean default false,
+  completed_at timestamp,
+  priority boolean default false,
   assigned_to text,                     -- e.g. 'Jennifer', 'Sam'
   created_at timestamp default now()
 );
