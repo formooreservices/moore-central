@@ -13,6 +13,12 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter'
 .app { max-width: 1400px; margin: 0 auto; padding: 32px 40px; }
 h1 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 28px; margin: 0; }
 h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 0 0 12px; }
+.section-header-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.section-header-row h2 { margin: 0; }
+.section-header-right { display: flex; align-items: center; gap: 12px; }
+.date-range-label { font-size: 12px; color: var(--ink-soft); }
+.external-link { font-size: 12px; color: var(--sage); text-decoration: none; font-weight: 500; }
+.external-link:hover { text-decoration: underline; }
 .sub { color: var(--ink-soft); margin: 4px 0 20px; }
 .connect-row { display: flex; gap: 10px; margin-bottom: 20px; }
 .connect-btn {

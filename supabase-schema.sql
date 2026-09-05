@@ -31,3 +31,9 @@ create table if not exists cfisd_emails (
 
 -- Run this in the Supabase SQL editor once, then grab your project URL
 -- and service_role key from Project Settings > API for Netlify env vars.
+--
+-- IMPORTANT: "CREATE TABLE IF NOT EXISTS" does NOT add new columns to a
+-- table that already exists — it's a no-op in that case. If you're adding
+-- a new column to an existing table (rather than creating it fresh), use
+-- ALTER TABLE instead, e.g.:
+--   ALTER TABLE cfisd_emails ADD COLUMN IF NOT EXISTS new_column_name text;

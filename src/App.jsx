@@ -255,6 +255,13 @@ export default function App() {
     }
   }
 
+  const weekRangeLabel = useMemo(() => {
+    const now = new Date();
+    const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const opts = { month: 'short', day: 'numeric' };
+    return `${now.toLocaleDateString(undefined, opts)} – ${weekOut.toLocaleDateString(undefined, opts)}`;
+  }, []);
+
   const categories = useMemo(() => {
     const set = new Set(emails.map((e) => e.category || 'Uncategorized'));
     return ['All', ...CATEGORY_ORDER.filter((c) => set.has(c)), ...[...set].filter((c) => !CATEGORY_ORDER.includes(c))];
@@ -345,7 +352,20 @@ export default function App() {
 
       <div className="columns">
         <section>
-          <h2>Upcoming</h2>
+          <div className="section-header-row">
+            <h2>Upcoming</h2>
+            <div className="section-header-right">
+              <span className="date-range-label">{weekRangeLabel}</span>
+              <a
+                className="external-link"
+                href="https://calendar.google.com/calendar/u/0/r/week"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open Google Calendar ↗
+              </a>
+            </div>
+          </div>
           {loading ? (
             <p className="muted">Loading…</p>
           ) : events.length === 0 ? (
