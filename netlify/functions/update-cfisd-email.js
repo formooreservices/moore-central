@@ -10,12 +10,29 @@
 import { createClient } from '@supabase/supabase-js';
 
 export async function handler(event) {
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  if (event.httpMethod === 'DELETE') {
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+    } catch {
+      return { statusCode: 400, body: 'Invalid JSON.' };
+    }
+    if (!body.id) {
+      return { statusCode: 400, body: 'Missing "id" field.' };
+    }
+    const { error } = await supabase.from('cfisd_emails').delete().eq('id', body.id);
+    if (error) {
+      return { statusCode: 500, body: error.message };
+    }
+    return { statusCode: 200, body: JSON.stringify({ ok: true }) };
+  }
+
   if (event.httpMethod !== 'PATCH') {
     return { statusCode: 405, body: 'Method not allowed.' };
   }
-
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = process.env;
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   let body;
   try {

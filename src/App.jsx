@@ -28,6 +28,7 @@ function formatDateTime(dateStr) {
 }
 
 const CATEGORY_ORDER = ['Truitt', 'CyFalls', 'Sports', 'School', 'Uncategorized'];
+const EDITABLE_CATEGORIES = ['Truitt', 'CyFalls', 'Sports', 'School', 'Other'];
 
 export default function App() {
   const [events, setEvents] = useState([]);
@@ -45,6 +46,22 @@ export default function App() {
   const [searchText, setSearchText] = useState('');
   const [sortField, setSortField] = useState('received_date');
   const [sortDir, setSortDir] = useState('desc');
+  const [showArchived, setShowArchived] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [editingSenderLabelId, setEditingSenderLabelId] = useState(null);
+  const [senderLabelDraft, setSenderLabelDraft] = useState('');
+
+  async function loadEmails() {
+    try {
+      const res = await fetch(
+        `/.netlify/functions/get-cfisd-emails${showArchived ? '?archived=true' : ''}`
+      );
+      const data = await res.json();
+      if (data.emails) setEmails(data.emails);
+    } catch {
+      // leave emails as-is on failure
+    }
+  }
 
   async function loadEverything() {
     setLoading(true);
@@ -52,7 +69,9 @@ export default function App() {
       fetch('/.netlify/functions/get-outlook-events').then((r) => r.json()),
       fetch('/.netlify/functions/get-google-events').then((r) => r.json()),
       fetch('/.netlify/functions/tasks').then((r) => r.json()),
-      fetch('/.netlify/functions/get-cfisd-emails').then((r) => r.json()),
+      fetch(
+        `/.netlify/functions/get-cfisd-emails${showArchived ? '?archived=true' : ''}`
+      ).then((r) => r.json()),
     ]);
 
     const combined = [];
@@ -91,6 +110,11 @@ export default function App() {
   useEffect(() => {
     loadEverything();
   }, []);
+
+  useEffect(() => {
+    loadEmails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showArchived]);
 
   // ---------- Tasks ----------
 
@@ -150,6 +174,44 @@ export default function App() {
     });
     const data = await res.json();
     setEmails((all) => all.map((e) => (e.id === email.id ? data.email : e)));
+  }
+
+  async function archiveEmail(email) {
+    await updateEmailField(email, 'archived', true);
+    setEmails((all) => all.filter((e) => e.id !== email.id));
+  }
+
+  async function unarchiveEmail(email) {
+    await updateEmailField(email, 'archived', false);
+    setEmails((all) => all.filter((e) => e.id !== email.id));
+  }
+
+  async function deleteEmail(email) {
+    if (!confirm(`Permanently delete "${email.subject}"? This can't be undone.`)) return;
+    await fetch('/.netlify/functions/update-cfisd-email', {
+      method: 'DELETE',
+      body: JSON.stringify({ id: email.id }),
+    });
+    setEmails((all) => all.filter((e) => e.id !== email.id));
+  }
+
+  function startEditCategory(email) {
+    setEditingCategoryId(email.id);
+  }
+
+  async function saveCategory(email, newCategory) {
+    await updateEmailField(email, 'category', newCategory || null);
+    setEditingCategoryId(null);
+  }
+
+  function startEditSenderLabel(email) {
+    setEditingSenderLabelId(email.id);
+    setSenderLabelDraft(email.sender_label || '');
+  }
+
+  async function saveSenderLabel(email) {
+    await updateEmailField(email, 'sender_label', senderLabelDraft.trim() || null);
+    setEditingSenderLabelId(null);
   }
 
   async function handleCalendarItemToggle(email, checked) {
@@ -352,7 +414,7 @@ export default function App() {
 
       <section className="emails-section">
         <div className="emails-header">
-          <h2>Emails from CFISD</h2>
+          <h2>{showArchived ? 'Archived Emails' : 'Emails from CFISD'}</h2>
           <div className="emails-toolbar">
             <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
               {categories.map((c) => (
@@ -372,6 +434,12 @@ export default function App() {
             </button>
             <button className="toolbar-btn" onClick={emailEmails}>
               Email
+            </button>
+            <button
+              className={`toolbar-btn ${showArchived ? 'toolbar-btn-active' : 'toolbar-btn-outline'}`}
+              onClick={() => setShowArchived((s) => !s)}
+            >
+              {showArchived ? 'Back to Inbox' : 'View Archived'}
             </button>
           </div>
         </div>
@@ -397,6 +465,7 @@ export default function App() {
                 <th>Checked</th>
                 <th>Action Item</th>
                 <th>Calendar Item</th>
+                <th className="row-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -409,11 +478,53 @@ export default function App() {
                       setExpandedEmailId(expandedEmailId === email.id ? null : email.id)
                     }
                   >
-                    <td>
-                      <span className="category-pill">{email.category || 'Uncategorized'}</span>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      {editingCategoryId === email.id ? (
+                        <select
+                          autoFocus
+                          value={email.category || ''}
+                          onChange={(e) => saveCategory(email, e.target.value)}
+                          onBlur={() => setEditingCategoryId(null)}
+                        >
+                          <option value="">Uncategorized</option>
+                          {EDITABLE_CATEGORIES.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          className="category-pill editable"
+                          onClick={() => startEditCategory(email)}
+                          title="Click to change category"
+                        >
+                          {email.category || 'Uncategorized'}
+                        </span>
+                      )}
                     </td>
                     <td>{formatDate(email.received_date)}</td>
-                    <td className="truncate">{email.sender || 'Unknown sender'}</td>
+                    <td className="truncate" onClick={(e) => e.stopPropagation()}>
+                      {editingSenderLabelId === email.id ? (
+                        <input
+                          autoFocus
+                          className="sender-label-input"
+                          value={senderLabelDraft}
+                          placeholder={email.sender}
+                          onChange={(e) => setSenderLabelDraft(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && saveSenderLabel(email)}
+                          onBlur={() => saveSenderLabel(email)}
+                        />
+                      ) : (
+                        <span
+                          onClick={() => startEditSenderLabel(email)}
+                          title={email.sender}
+                          className="sender-label"
+                        >
+                          {email.sender_label || email.sender || 'Unknown sender'}
+                        </span>
+                      )}
+                    </td>
                     <td className="truncate">{email.subject}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <input
@@ -440,10 +551,36 @@ export default function App() {
                         }
                       />
                     </td>
+                    <td onClick={(e) => e.stopPropagation()} className="row-actions">
+                      {showArchived ? (
+                        <button
+                          className="icon-btn"
+                          onClick={() => unarchiveEmail(email)}
+                          title="Restore to inbox"
+                        >
+                          ↩
+                        </button>
+                      ) : (
+                        <button
+                          className="icon-btn"
+                          onClick={() => archiveEmail(email)}
+                          title="Archive"
+                        >
+                          🗄
+                        </button>
+                      )}
+                      <button
+                        className="icon-btn danger"
+                        onClick={() => deleteEmail(email)}
+                        title="Delete permanently"
+                      >
+                        ✕
+                      </button>
+                    </td>
                   </tr>
                   {expandedEmailId === email.id && (
                     <tr className="cfisd-body-row">
-                      <td colSpan={7}>{email.body || 'No body content.'}</td>
+                      <td colSpan={8}>{email.body || 'No body content.'}</td>
                     </tr>
                   )}
                 </>

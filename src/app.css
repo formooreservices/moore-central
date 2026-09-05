@@ -76,6 +76,17 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
   font-size: 11px; background: var(--marigold-light); color: #854F0B;
   padding: 2px 10px; border-radius: 12px; white-space: nowrap;
 }
+.category-pill.editable { cursor: pointer; }
+.category-pill.editable:hover { outline: 1px solid var(--marigold); }
+.sender-label { cursor: pointer; border-bottom: 1px dashed transparent; }
+.sender-label:hover { border-bottom-color: var(--ink-soft); }
+.sender-label-input {
+  width: 100%; padding: 3px 6px; border: 1px solid var(--sage);
+  border-radius: 6px; font-family: inherit; font-size: 13px;
+}
+.row-actions { white-space: nowrap; }
+.toolbar-btn-outline { background: transparent; color: var(--sage); border: 1px solid var(--sage); }
+.toolbar-btn-active { background: var(--marigold); }
 .cfisd-body-row td {
   background: #FBF7F0; font-size: 13px; color: var(--ink-soft);
   white-space: pre-wrap; line-height: 1.5; padding: 12px 20px;
@@ -84,5 +95,6 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 @media print {
   header, .connect-row, .notice, .columns, .emails-toolbar { display: none !important; }
   .emails-section { border: none; padding: 0; }
+  .row-actions { display: none; }
 }
 .section-sub { font-size: 14px; margin: 18px 0 10px; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 14px; }

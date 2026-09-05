@@ -18,12 +18,14 @@ create table if not exists cfisd_emails (
   id uuid primary key default gen_random_uuid(),
   received_date date,
   sender text,
+  sender_label text,                    -- friendly name for the sender, e.g. 'Truitt Front Office'
   subject text,
   body text,
   category text,                        -- e.g. 'Truitt', 'CyFalls', 'Sports', 'School' — nullable for now
   checked boolean default false,
   action_item boolean default false,
   calendar_item boolean default false,
+  archived boolean default false,
   created_at timestamp default now()
 );
 
