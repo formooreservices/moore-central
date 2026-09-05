@@ -29,6 +29,7 @@ function formatDateTime(dateStr) {
 
 const CATEGORY_ORDER = ['Truitt', 'CyFalls', 'Sports', 'School', 'Uncategorized'];
 const EDITABLE_CATEGORIES = ['Truitt', 'CyFalls', 'Sports', 'School', 'Other'];
+const ASSIGNEE_OPTIONS = ['Family', 'Jennifer', 'Dennis', 'Chris', 'Unassigned'];
 
 export default function App() {
   const [events, setEvents] = useState([]);
@@ -51,6 +52,8 @@ export default function App() {
   const [hideSchoolWork, setHideSchoolWork] = useState(false);
   const [taskFilter, setTaskFilter] = useState('active'); // 'active' | 'week' | 'priority' | 'all'
   const [showCompleted, setShowCompleted] = useState(false);
+  const [assigneeFilter, setAssigneeFilter] = useState('All');
+  const [editingAssigneeId, setEditingAssigneeId] = useState(null);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingSenderLabelId, setEditingSenderLabelId] = useState(null);
   const [senderLabelDraft, setSenderLabelDraft] = useState('');
@@ -150,6 +153,17 @@ export default function App() {
     });
     const data = await res.json();
     setTasks((t) => t.map((x) => (x.id === task.id ? data.task : x)));
+  }
+
+  async function updateAssignee(task, assignee) {
+    const value = assignee === 'Unassigned' ? null : assignee;
+    const res = await fetch('/.netlify/functions/tasks', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: task.id, assigned_to: value }),
+    });
+    const data = await res.json();
+    setTasks((t) => t.map((x) => (x.id === task.id ? data.task : x)));
+    setEditingAssigneeId(null);
   }
 
   async function deleteTask(task) {
@@ -328,6 +342,11 @@ export default function App() {
 
     let base = tasks.filter((t) => !t.completed);
 
+    if (assigneeFilter !== 'All') {
+      const matchValue = assigneeFilter === 'Unassigned' ? null : assigneeFilter;
+      base = base.filter((t) => (t.assigned_to || null) === matchValue);
+    }
+
     if (taskFilter === 'week') {
       base = base.filter((t) => {
         if (!t.due_date) return false;
@@ -348,7 +367,7 @@ export default function App() {
     const combined = [...priorityTasks, ...rest.filter((t) => !pinnedIds.has(t.id))];
 
     return combined;
-  }, [tasks, taskFilter, showCompleted]);
+  }, [tasks, taskFilter, showCompleted, assigneeFilter]);
 
   function printTasks() {
     window.print();
@@ -459,7 +478,7 @@ export default function App() {
               <span className="date-range-label">{weekRangeLabel}</span>
               <a
                 className="external-link"
-                href="https://calendar.google.com/calendar/u/0/r/week"
+                href="https://calendar.google.com/calendar/r/week?authuser=jenniferdennischristopher@gmail.com"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -520,6 +539,14 @@ export default function App() {
                 <option value="all">All</option>
               </select>
             )}
+            <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)}>
+              <option value="All">Everyone</option>
+              {ASSIGNEE_OPTIONS.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
             <button className="toolbar-btn" onClick={printTasks}>
               Print
             </button>
@@ -574,7 +601,29 @@ export default function App() {
                   ) : (
                     <span>{t.title}</span>
                   )}
-                  {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
+                  {editingAssigneeId === t.id ? (
+                    <select
+                      autoFocus
+                      className="assignee-select"
+                      value={t.assigned_to || 'Unassigned'}
+                      onChange={(e) => updateAssignee(t, e.target.value)}
+                      onBlur={() => setEditingAssigneeId(null)}
+                    >
+                      {ASSIGNEE_OPTIONS.map((a) => (
+                        <option key={a} value={a}>
+                          {a}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span
+                      className="assignee editable"
+                      onClick={() => setEditingAssigneeId(t.id)}
+                      title="Click to change assignee"
+                    >
+                      {t.assigned_to || 'Unassigned'}
+                    </span>
+                  )}
                   <span className="task-date">
                     {t.completed ? formatDateTime(t.completed_at) : formatDateTime(t.created_at)}
                   </span>
