@@ -50,6 +50,9 @@ export default function App() {
   const [showArchived, setShowArchived] = useState(false);
   const [calendarFilter, setCalendarFilter] = useState('All');
   const [hideSchoolWork, setHideSchoolWork] = useState(false);
+  const [dateRangeFilter, setDateRangeFilter] = useState('week'); // 'today' | 'week' | 'month' | 'ytd' | 'range'
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
   const [taskFilter, setTaskFilter] = useState('active'); // 'active' | 'week' | 'priority' | 'all'
   const [showCompleted, setShowCompleted] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState('All');
@@ -70,15 +73,18 @@ export default function App() {
     }
   }
 
-  async function loadEverything() {
-    setLoading(true);
+  // Fetches calendar events for the given {start, end} window and updates
+  // `events` in place. Returns any connection errors so callers can merge
+  // them with other error sources (e.g. loadEverything on first load).
+  async function loadEvents(bounds) {
+    const params = new URLSearchParams({
+      start: bounds.start.toISOString(),
+      end: bounds.end.toISOString(),
+    }).toString();
+
     const results = await Promise.allSettled([
-      fetch('/.netlify/functions/get-outlook-events').then((r) => r.json()),
-      fetch('/.netlify/functions/get-google-events').then((r) => r.json()),
-      fetch('/.netlify/functions/tasks').then((r) => r.json()),
-      fetch(
-        `/.netlify/functions/get-cfisd-emails${showArchived ? '?archived=true' : ''}`
-      ).then((r) => r.json()),
+      fetch(`/.netlify/functions/get-outlook-events?${params}`).then((r) => r.json()),
+      fetch(`/.netlify/functions/get-google-events?${params}`).then((r) => r.json()),
     ]);
 
     const combined = [];
@@ -101,27 +107,43 @@ export default function App() {
 
     combined.sort((a, b) => new Date(a.start) - new Date(b.start));
     setEvents(combined);
+    return errs;
+  }
 
-    if (results[2].status === 'fulfilled' && results[2].value.tasks) {
-      setTasks(results[2].value.tasks);
-    }
+  async function loadEverything() {
+    setLoading(true);
+    const [eventErrs, tasksResult, emailsResult] = await Promise.all([
+      loadEvents(dateRangeBounds),
+      fetch('/.netlify/functions/tasks')
+        .then((r) => r.json())
+        .catch(() => null),
+      fetch(`/.netlify/functions/get-cfisd-emails${showArchived ? '?archived=true' : ''}`)
+        .then((r) => r.json())
+        .catch(() => null),
+    ]);
 
-    if (results[3].status === 'fulfilled' && results[3].value.emails) {
-      setEmails(results[3].value.emails);
-    }
+    if (tasksResult?.tasks) setTasks(tasksResult.tasks);
+    if (emailsResult?.emails) setEmails(emailsResult.emails);
 
-    setErrors(errs);
+    setErrors(eventErrs);
     setLoading(false);
   }
 
   useEffect(() => {
     loadEverything();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     loadEmails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchived]);
+
+  // Re-fetch events whenever the selected date range changes.
+  useEffect(() => {
+    loadEvents(dateRangeBounds).then(setErrors);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRangeBounds]);
 
   // ---------- Tasks ----------
 
@@ -282,12 +304,47 @@ export default function App() {
     }
   }
 
-  const weekRangeLabel = useMemo(() => {
-    const now = new Date();
-    const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  // Computes the {start, end, label} window for the "Upcoming" section
+  // based on the selected date-range filter.
+  const dateRangeBounds = useMemo(() => {
     const opts = { month: 'short', day: 'numeric' };
-    return `${now.toLocaleDateString(undefined, opts)} – ${weekOut.toLocaleDateString(undefined, opts)}`;
-  }, []);
+    const now = new Date();
+
+    if (dateRangeFilter === 'today') {
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      return { start: now, end, label: 'Today' };
+    }
+
+    if (dateRangeFilter === 'month') {
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      return { start: now, end, label: `Through ${end.toLocaleDateString(undefined, opts)}` };
+    }
+
+    if (dateRangeFilter === 'ytd') {
+      const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+      return { start: now, end, label: `Through Dec 31` };
+    }
+
+    if (dateRangeFilter === 'range') {
+      const start = rangeStart ? new Date(`${rangeStart}T00:00:00`) : now;
+      const end = rangeEnd
+        ? new Date(`${rangeEnd}T23:59:59`)
+        : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      return {
+        start,
+        end,
+        label: `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`,
+      };
+    }
+
+    // default: 'week'
+    const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return {
+      start: now,
+      end: weekOut,
+      label: `${now.toLocaleDateString(undefined, opts)} – ${weekOut.toLocaleDateString(undefined, opts)}`,
+    };
+  }, [dateRangeFilter, rangeStart, rangeEnd]);
 
   // Calendars whose label suggests school or work — used by "Hide School & Work".
   function isSchoolOrWork(calendarLabel) {
@@ -475,7 +532,7 @@ export default function App() {
           <div className="section-header-row">
             <h2>Upcoming</h2>
             <div className="section-header-right">
-              <span className="date-range-label">{weekRangeLabel}</span>
+              <span className="date-range-label">{dateRangeBounds.label}</span>
               <a
                 className="external-link"
                 href="https://calendar.google.com/calendar/r/week?authuser=jenniferdennischristopher@gmail.com"
@@ -487,6 +544,30 @@ export default function App() {
             </div>
           </div>
           <div className="upcoming-toolbar">
+            <select value={dateRangeFilter} onChange={(e) => setDateRangeFilter(e.target.value)}>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="ytd">Year to Date</option>
+              <option value="range">Custom Range</option>
+            </select>
+            {dateRangeFilter === 'range' && (
+              <>
+                <input
+                  type="date"
+                  className="range-date-input"
+                  value={rangeStart}
+                  onChange={(e) => setRangeStart(e.target.value)}
+                />
+                <span className="range-sep">to</span>
+                <input
+                  type="date"
+                  className="range-date-input"
+                  value={rangeEnd}
+                  onChange={(e) => setRangeEnd(e.target.value)}
+                />
+              </>
+            )}
             <select value={calendarFilter} onChange={(e) => setCalendarFilter(e.target.value)}>
               {calendarNames.map((c) => (
                 <option key={c} value={c}>

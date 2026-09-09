@@ -27,6 +27,11 @@ h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 
   padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
   font-family: inherit; font-size: 12px;
 }
+.range-date-input {
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px;
+  font-family: inherit; font-size: 12px;
+}
+.range-sep { font-size: 12px; color: var(--ink-soft); }
 .toggle-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); cursor: pointer; }
 .sub { color: var(--ink-soft); margin: 4px 0 20px; }
 .connect-row { display: flex; gap: 10px; margin-bottom: 20px; }

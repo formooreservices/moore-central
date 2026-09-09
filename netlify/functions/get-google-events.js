@@ -23,7 +23,10 @@ async function fetchEventsForCalendar(accessToken, calendarId, label, timeMin, t
   url.searchParams.set('timeMax', timeMax);
   url.searchParams.set('singleEvents', 'true');
   url.searchParams.set('orderBy', 'startTime');
-  url.searchParams.set('maxResults', '25');
+  // Raised from 25 so wider windows (a month, YTD) aren't truncated.
+  // Note: this is a single page per calendar — a very busy year could still
+  // exceed it, which would need nextPageToken pagination to fully solve.
+  url.searchParams.set('maxResults', '250');
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -46,13 +49,16 @@ async function fetchEventsForCalendar(accessToken, calendarId, label, timeMin, t
   return { label, error: null, events };
 }
 
-export async function handler() {
+export async function handler(event) {
   try {
     const accessToken = await getGoogleAccessToken();
     const calendars = parseCalendarList();
 
+    const qs = event?.queryStringParameters || {};
     const now = new Date();
     const weekOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const rangeStart = qs.start ? new Date(qs.start) : now;
+    const rangeEnd = qs.end ? new Date(qs.end) : weekOut;
 
     const results = await Promise.all(
       calendars.map((c) =>
@@ -60,8 +66,8 @@ export async function handler() {
           accessToken,
           c.calendarId,
           c.label,
-          now.toISOString(),
-          weekOut.toISOString()
+          rangeStart.toISOString(),
+          rangeEnd.toISOString()
         )
       )
     );
