@@ -1,0 +1,22 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[dev]
+  framework = "vite"
+
+# Keep tokens server-side only. Never expose these as VITE_ prefixed vars.
+# Set as Netlify environment variables in the site dashboard:
+#   MS_CLIENT_ID
+#   MS_CLIENT_SECRET
+#   MS_TENANT            (use "consumers" for personal Microsoft accounts like Hotmail)
+#   SITE_URL             (e.g. https://your-site.netlify.app)
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   INTAKE_SECRET        (optional, a random string you make up — protects
+#                         the Zapier webhook endpoint from random traffic)
+#   GOOGLE_CALENDARS      (optional — comma-separated "Label:calendarId" pairs
+#                          to pull multiple calendars, e.g.:
+#                          "Household:primary,Dennis School:abc@group.calendar.google.com,Dennis Athletics:def@group.calendar.google.com,Christopher School:ghi@group.calendar.google.com,Christopher Athletics:jkl@group.calendar.google.com"
+#                          If unset, defaults to just the primary calendar.)
