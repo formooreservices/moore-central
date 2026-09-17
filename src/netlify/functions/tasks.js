@@ -1,8 +1,12 @@
 // /.netlify/functions/tasks
-// GET    -> list tasks
-// POST   -> create a task { title, due_date?, assigned_to? }
-// PATCH  -> toggle/update a task { id, ...fields }
-// DELETE -> remove a task { id }
+
+// GET -> list tasks (add ?archived=true to list archived ones instead of active ones)
+
+// POST -> create a task { title, due_date?, assigned_to? }
+
+// PATCH -> toggle/update a task { id, ...fields } — e.g. { id, completed: true } or { id, archived: true }
+
+// DELETE -> permanently remove a task { id }
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,19 +15,25 @@ export async function handler(event) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   if (event.httpMethod === 'GET') {
+    const showArchived = event.queryStringParameters?.archived === 'true';
+
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
+      .eq('archived', showArchived)
       .order('due_date', { ascending: true, nullsFirst: false });
+
     if (error) return { statusCode: 500, body: error.message };
     return { statusCode: 200, body: JSON.stringify({ tasks: data }) };
   }
 
   if (event.httpMethod === 'POST') {
     const body = JSON.parse(event.body || '{}');
+
     if (!body.title) {
       return { statusCode: 400, body: 'A task needs a title.' };
     }
+
     const { data, error } = await supabase
       .from('tasks')
       .insert({
@@ -34,6 +44,7 @@ export async function handler(event) {
       })
       .select()
       .single();
+
     if (error) return { statusCode: 500, body: error.message };
     return { statusCode: 201, body: JSON.stringify({ task: data }) };
   }
@@ -41,13 +52,16 @@ export async function handler(event) {
   if (event.httpMethod === 'PATCH') {
     const body = JSON.parse(event.body || '{}');
     if (!body.id) return { statusCode: 400, body: 'Missing task id.' };
+
     const { id, ...fields } = body;
+
     const { data, error } = await supabase
       .from('tasks')
       .update(fields)
       .eq('id', id)
       .select()
       .single();
+
     if (error) return { statusCode: 500, body: error.message };
     return { statusCode: 200, body: JSON.stringify({ task: data }) };
   }
@@ -55,7 +69,9 @@ export async function handler(event) {
   if (event.httpMethod === 'DELETE') {
     const body = JSON.parse(event.body || '{}');
     if (!body.id) return { statusCode: 400, body: 'Missing task id.' };
+
     const { error } = await supabase.from('tasks').delete().eq('id', body.id);
+
     if (error) return { statusCode: 500, body: error.message };
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   }
