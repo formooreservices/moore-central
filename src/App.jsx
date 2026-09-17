@@ -29,6 +29,16 @@ function formatDateTime(dateStr) {
 
 const CATEGORY_ORDER = ['Truitt', 'CyFalls', 'Sports', 'School', 'Uncategorized'];
 
+// Labels (matched against the event's calendar name or title, case-insensitive)
+// that should be hidden when "Hide school and work" is checked.
+const SCHOOL_WORK_LABELS = [
+  "mommy's work",
+  'dennis - school day',
+  'christopher - school',
+  'school',
+  'work',
+];
+
 export default function App() {
   const [events, setEvents] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -40,11 +50,26 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState([]);
 
+  // Calendar/events filter state
+  const [eventSearchText, setEventSearchText] = useState('');
+  const [hideSchoolWork, setHideSchoolWork] = useState(false);
+
+  // Task archive view state
+  const [viewArchived, setViewArchived] = useState(false);
+
   // Email table filter/sort state
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [searchText, setSearchText] = useState('');
   const [sortField, setSortField] = useState('received_date');
   const [sortDir, setSortDir] = useState('desc');
+
+  async function loadTasks(archived) {
+    const res = await fetch(
+      `/.netlify/functions/tasks${archived ? '?archived=true' : ''}`
+    );
+    const data = await res.json();
+    if (data.tasks) setTasks(data.tasks);
+  }
 
   async function loadEverything() {
     setLoading(true);
@@ -92,6 +117,36 @@ export default function App() {
     loadEverything();
   }, []);
 
+  // Refetch the task list whenever the archived/active view is toggled.
+  useEffect(() => {
+    loadTasks(viewArchived);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewArchived]);
+
+  // ---------- Calendar / Events ----------
+
+  const filteredEvents = useMemo(() => {
+    let list = events;
+
+    if (hideSchoolWork) {
+      list = list.filter((e) => {
+        const label = `${e.calendar || ''} ${e.title || ''}`.toLowerCase();
+        return !SCHOOL_WORK_LABELS.some((needle) => label.includes(needle));
+      });
+    }
+
+    if (eventSearchText.trim()) {
+      const q = eventSearchText.toLowerCase();
+      list = list.filter(
+        (e) =>
+          e.title?.toLowerCase().includes(q) ||
+          e.calendar?.toLowerCase().includes(q)
+      );
+    }
+
+    return list;
+  }, [events, hideSchoolWork, eventSearchText]);
+
   // ---------- Tasks ----------
 
   async function addTask(e) {
@@ -115,8 +170,30 @@ export default function App() {
     setTasks((t) => t.map((x) => (x.id === task.id ? data.task : x)));
   }
 
+  async function archiveTask(task) {
+    const res = await fetch('/.netlify/functions/tasks', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: task.id, archived: true }),
+    });
+    if (res.ok) {
+      // Archiving moves it out of whichever list is currently showing (active).
+      setTasks((t) => t.filter((x) => x.id !== task.id));
+    }
+  }
+
+  async function unarchiveTask(task) {
+    const res = await fetch('/.netlify/functions/tasks', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: task.id, archived: false }),
+    });
+    if (res.ok) {
+      // Unarchiving moves it out of the archived list currently showing.
+      setTasks((t) => t.filter((x) => x.id !== task.id));
+    }
+  }
+
   async function deleteTask(task) {
-    if (!confirm(`Delete "${task.title}"?`)) return;
+    if (!confirm(`Permanently delete "${task.title}"?`)) return;
     await fetch('/.netlify/functions/tasks', {
       method: 'DELETE',
       body: JSON.stringify({ id: task.id }),
@@ -284,13 +361,29 @@ export default function App() {
       <div className="columns">
         <section>
           <h2>Upcoming</h2>
+          <div className="event-toolbar">
+            <input
+              className="event-search"
+              placeholder="Search events…"
+              value={eventSearchText}
+              onChange={(e) => setEventSearchText(e.target.value)}
+            />
+            <label className="hide-toggle">
+              <input
+                type="checkbox"
+                checked={hideSchoolWork}
+                onChange={(e) => setHideSchoolWork(e.target.checked)}
+              />
+              Hide school and work
+            </label>
+          </div>
           {loading ? (
             <p className="muted">Loading…</p>
-          ) : events.length === 0 ? (
+          ) : filteredEvents.length === 0 ? (
             <p className="muted">Nothing on the calendar this week.</p>
           ) : (
             <ul className="event-list">
-              {events.map((e) => (
+              {filteredEvents.map((e) => (
                 <li key={e.id} className={`event-row ${e.source}`}>
                   <span className="event-title">{e.title || 'Untitled event'}</span>
                   <span className="event-time">{formatTime(e.start)}</span>
@@ -302,51 +395,97 @@ export default function App() {
         </section>
 
         <section>
-          <h2>Task list</h2>
-          <form onSubmit={addTask} className="task-form">
-            <input
-              value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
-              placeholder="Add a task"
-            />
-            <button type="submit">Add</button>
-          </form>
-          <ul className="task-list">
-            {tasks.map((t) => (
-              <li key={t.id} className={t.completed ? 'done' : ''}>
-                <input
-                  type="checkbox"
-                  checked={t.completed}
-                  onChange={() => toggleTask(t)}
-                />
-                {editingTaskId === t.id ? (
+          <div className="task-list-header">
+            <h2>Task list</h2>
+            <label className="hide-toggle">
+              <input
+                type="checkbox"
+                checked={viewArchived}
+                onChange={(e) => setViewArchived(e.target.checked)}
+              />
+              Show archived
+            </label>
+          </div>
+
+          {!viewArchived && (
+            <form onSubmit={addTask} className="task-form">
+              <input
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="Add a task"
+              />
+              <button type="submit">Add</button>
+            </form>
+          )}
+
+          {tasks.length === 0 ? (
+            <p className="muted">
+              {viewArchived ? 'No archived tasks.' : 'No tasks yet.'}
+            </p>
+          ) : (
+            <ul className="task-list">
+              {tasks.map((t) => (
+                <li key={t.id} className={t.completed ? 'done' : ''}>
                   <input
-                    className="task-edit-input"
-                    value={editingTaskTitle}
-                    onChange={(e) => setEditingTaskTitle(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && saveEditTask(t)}
-                    autoFocus
+                    type="checkbox"
+                    checked={t.completed}
+                    disabled={viewArchived}
+                    onChange={() => toggleTask(t)}
                   />
-                ) : (
-                  <span>{t.title}</span>
-                )}
-                {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
-                <span className="task-date">{formatDateTime(t.created_at)}</span>
-                {editingTaskId === t.id ? (
-                  <button className="icon-btn" onClick={() => saveEditTask(t)} title="Save">
-                    ✓
+                  {editingTaskId === t.id ? (
+                    <input
+                      className="task-edit-input"
+                      value={editingTaskTitle}
+                      onChange={(e) => setEditingTaskTitle(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEditTask(t)}
+                      autoFocus
+                    />
+                  ) : (
+                    <span>{t.title}</span>
+                  )}
+                  {t.assigned_to && <span className="assignee">{t.assigned_to}</span>}
+                  <span className="task-date">{formatDateTime(t.created_at)}</span>
+
+                  {!viewArchived && (
+                    <>
+                      {editingTaskId === t.id ? (
+                        <button className="icon-btn" onClick={() => saveEditTask(t)} title="Save">
+                          ✓
+                        </button>
+                      ) : (
+                        <button className="icon-btn" onClick={() => startEditTask(t)} title="Edit">
+                          ✎
+                        </button>
+                      )}
+                      {t.completed && (
+                        <button
+                          className="icon-btn"
+                          onClick={() => archiveTask(t)}
+                          title="Archive"
+                        >
+                          🗄
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {viewArchived && (
+                    <button
+                      className="icon-btn"
+                      onClick={() => unarchiveTask(t)}
+                      title="Restore"
+                    >
+                      ↩
+                    </button>
+                  )}
+
+                  <button className="icon-btn danger" onClick={() => deleteTask(t)} title="Delete permanently">
+                    ✕
                   </button>
-                ) : (
-                  <button className="icon-btn" onClick={() => startEditTask(t)} title="Edit">
-                    ✎
-                  </button>
-                )}
-                <button className="icon-btn danger" onClick={() => deleteTask(t)} title="Delete">
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 
