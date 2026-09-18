@@ -4,43 +4,15 @@
 // cfisd_emails table, with a best-guess category based on keywords.
 //
 // Expected JSON body from Make's HTTP module:
-//   {
-//     "subject": "Permission slip due Friday",
-//     "received": "2026-09-03T14:22:00Z",
-//     "from": "truittes@cfisd.net",
-//     "body": "Please return the signed permission slip by..."
-//   }
+// {
+//   "subject": "Permission slip due Friday",
+//   "received": "2026-09-03T14:22:00Z",
+//   "from": "truittes@cfisd.net",
+//   "body": "Please return the signed permission slip by..."
+// }
 
 import { createClient } from '@supabase/supabase-js';
-
-// Basic keyword -> category guesses. Adjust/expand freely; this runs on
-// subject + sender + body combined, case-insensitive.
-const CATEGORY_RULES = [
-  { category: 'Truitt', keywords: ['truitt'] },
-  { category: 'CyFalls', keywords: ['cy falls', 'cyfalls', 'cy-falls'] },
-  { category: 'Sports', keywords: ['athletics', 'practice', 'game', 'tournament', 'coach'] },
-  { category: 'School', keywords: ['homework', 'permission slip', 'pta', 'report card', 'school'] },
-];
-
-function guessCategory(text) {
-  const lower = text.toLowerCase();
-  for (const rule of CATEGORY_RULES) {
-    if (rule.keywords.some((k) => lower.includes(k))) {
-      return rule.category;
-    }
-  }
-  return null;
-}
-
-// Handles ISO strings, RFC 2822 strings, and other JS-parseable formats.
-// Falls back to null if nothing usable comes through, rather than crashing
-// the whole request on a bad date string.
-function parseToDateOnly(dateInput) {
-  if (!dateInput) return null;
-  const parsed = new Date(dateInput);
-  if (isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
-}
+import { guessCategory, parseToDateOnly } from './lib/categorize-email.js';
 
 export async function handler(event) {
   if (event.httpMethod !== 'POST') {

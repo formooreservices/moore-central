@@ -1,9 +1,10 @@
 // GET /.netlify/functions/auth-google-start
-// Redirects the browser to Google's consent screen for Calendar read access.
+// Redirects the browser to Google's consent screen for Calendar and Gmail
+// read access (Gmail scope added to support syncing CFISD emails directly,
+// replacing the Make.com Outlook watch step).
 
 export async function handler() {
   const { GOOGLE_CLIENT_ID, SITE_URL } = process.env;
-
   const redirectUri = `${SITE_URL}/.netlify/functions/auth-google-callback`;
 
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -14,7 +15,7 @@ export async function handler() {
   authUrl.searchParams.set('prompt', 'consent');
   authUrl.searchParams.set(
     'scope',
-    'https://www.googleapis.com/auth/calendar.readonly'
+    'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly'
   );
   authUrl.searchParams.set('state', 'moorecentral-google-login');
 

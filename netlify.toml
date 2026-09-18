@@ -6,17 +6,27 @@
 [dev]
   framework = "vite"
 
+# Runs sync-gmail-emails.js automatically without needing Make.com or the
+# site to be open. Adjust the cron schedule as needed — this runs hourly.
+[functions."sync-gmail-emails"]
+  schedule = "@hourly"
+
 # Keep tokens server-side only. Never expose these as VITE_ prefixed vars.
 # Set as Netlify environment variables in the site dashboard:
-#   MS_CLIENT_ID
-#   MS_CLIENT_SECRET
-#   MS_TENANT            (use "consumers" for personal Microsoft accounts like Hotmail)
-#   SITE_URL             (e.g. https://your-site.netlify.app)
-#   SUPABASE_URL
-#   SUPABASE_SERVICE_ROLE_KEY
-#   INTAKE_SECRET        (optional, a random string you make up — protects
-#                         the Zapier webhook endpoint from random traffic)
-#   GOOGLE_CALENDARS      (optional — comma-separated "Label:calendarId" pairs
-#                          to pull multiple calendars, e.g.:
-#                          "Household:primary,Dennis School:abc@group.calendar.google.com,Dennis Athletics:def@group.calendar.google.com,Christopher School:ghi@group.calendar.google.com,Christopher Athletics:jkl@group.calendar.google.com"
-#                          If unset, defaults to just the primary calendar.)
+# MS_CLIENT_ID
+# MS_CLIENT_SECRET
+# MS_TENANT (use "consumers" for personal Microsoft accounts like Hotmail)
+# SITE_URL (e.g. https://your-site.netlify.app)
+# SUPABASE_URL
+# SUPABASE_SERVICE_ROLE_KEY
+# INTAKE_SECRET (optional, a random string you make up — protects
+#   the Zapier webhook endpoint from random traffic)
+# GOOGLE_CLIENT_ID
+# GOOGLE_CLIENT_SECRET
+# GOOGLE_CALENDARS (optional — comma-separated "Label:calendarId" pairs
+#   to pull multiple calendars, e.g.:
+#   "Household:primary,Dennis School:abc@group.calendar.google.com,Dennis Athletics:def@group.calendar.google.com,Christopher School:ghi@group.calendar.google.com,Christopher Athletics:jkl@group.calendar.google.com"
+#   If unset, defaults to just the primary calendar.)
+# GMAIL_SYNC_QUERY (optional — a Gmail search query limiting which messages
+#   sync-gmail-emails.js checks each run. Defaults to "newer_than:2d".
+#   Example: 'newer_than:2d from:(*@cfisd.net OR yourname@gmail.com)')
