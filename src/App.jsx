@@ -70,6 +70,11 @@ export default function App() {
 
   // Email table filter/sort state
   const [categoryFilter, setCategoryFilter] = useState('All');
+  // 'all' | 'viewed' | 'unviewed' — mirrors the Task list's "Show archived"
+  // pattern: a simple dropdown that swaps which subset of emails is shown.
+  const [viewedFilter, setViewedFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [searchText, setSearchText] = useState('');
   const [sortField, setSortField] = useState('received_date');
   const [sortDir, setSortDir] = useState('desc');
@@ -361,6 +366,20 @@ export default function App() {
     if (categoryFilter !== 'All') {
       list = list.filter((e) => (e.category || 'Uncategorized') === categoryFilter);
     }
+    if (viewedFilter === 'viewed') {
+      list = list.filter((e) => e.checked);
+    } else if (viewedFilter === 'unviewed') {
+      list = list.filter((e) => !e.checked);
+    }
+    if (dateFrom) {
+      const from = new Date(dateFrom).getTime();
+      list = list.filter((e) => e.received_date && new Date(e.received_date).getTime() >= from);
+    }
+    if (dateTo) {
+      // Include the whole "to" day by treating it as end-of-day.
+      const to = new Date(dateTo).getTime() + 24 * 60 * 60 * 1000 - 1;
+      list = list.filter((e) => e.received_date && new Date(e.received_date).getTime() <= to);
+    }
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
       list = list.filter(
@@ -385,7 +404,7 @@ export default function App() {
       return 0;
     });
     return sorted;
-  }, [emails, categoryFilter, searchText, sortField, sortDir]);
+  }, [emails, categoryFilter, viewedFilter, dateFrom, dateTo, searchText, sortField, sortDir]);
 
   function toggleSort(field) {
     if (sortField === field) {
@@ -595,6 +614,29 @@ export default function App() {
                 </option>
               ))}
             </select>
+            <select value={viewedFilter} onChange={(e) => setViewedFilter(e.target.value)}>
+              <option value="all">All Emails</option>
+              <option value="viewed">List Viewed Emails</option>
+              <option value="unviewed">List Unviewed Emails</option>
+            </select>
+            <label className="date-filter-label">
+              From
+              <input
+                type="date"
+                className="date-filter"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </label>
+            <label className="date-filter-label">
+              To
+              <input
+                type="date"
+                className="date-filter"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </label>
             <input
               className="email-search"
               placeholder="Search subject, sender, body…"

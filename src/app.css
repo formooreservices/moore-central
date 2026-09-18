@@ -82,6 +82,10 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 }
 .email-search { min-width: 200px; }
 
+/* Date-range filter next to the Viewed/category dropdowns. */
+.date-filter-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+.date-filter { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; font-size: 13px; }
+
 /* "X of Y viewed" count next to the emails toolbar controls. */
 .viewed-summary { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
 
