@@ -8,9 +8,8 @@
 
 # Runs sync-gmail-emails.js automatically without needing Make.com or the
 # site to be open. Adjust the cron schedule as needed — this runs hourly.
-# TEMPORARILY DISABLED for manual testing — uncomment once confirmed working:
-# [functions."sync-gmail-emails"]
-#   schedule = "@hourly"
+[functions."sync-gmail-emails"]
+  schedule = "@hourly"
 
 # Keep tokens server-side only. Never expose these as VITE_ prefixed vars.
 # Set as Netlify environment variables in the site dashboard:
