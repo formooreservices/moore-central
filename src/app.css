@@ -94,6 +94,7 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
   padding: 6px 14px; font-size: 13px; cursor: pointer;
 }
 .toolbar-btn:hover { opacity: 0.9; }
+.toolbar-btn.danger { background: var(--danger); }
 .cfisd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cfisd-table th {
   text-align: left; padding: 8px 10px; color: var(--ink-soft);

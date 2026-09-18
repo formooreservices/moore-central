@@ -44,6 +44,7 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [emails, setEmails] = useState([]);
   const [expandedEmailId, setExpandedEmailId] = useState(null);
+  const [selectedEmailIds, setSelectedEmailIds] = useState(new Set());
   const [newTask, setNewTask] = useState('');
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTaskTitle, setEditingTaskTitle] = useState('');
@@ -275,6 +276,37 @@ export default function App() {
       body: JSON.stringify({ id: email.id }),
     });
     setEmails((all) => all.filter((e) => e.id !== email.id));
+  }
+
+  function toggleEmailSelected(emailId) {
+    setSelectedEmailIds((ids) => {
+      const next = new Set(ids);
+      if (next.has(emailId)) next.delete(emailId);
+      else next.add(emailId);
+      return next;
+    });
+  }
+
+  // Selects/deselects every currently-filtered/visible email at once.
+  function toggleSelectAllVisible() {
+    setSelectedEmailIds((ids) => {
+      const visibleIds = filteredSortedEmails.map((e) => e.id);
+      const allSelected = visibleIds.every((id) => ids.has(id));
+      return allSelected ? new Set() : new Set(visibleIds);
+    });
+  }
+
+  async function deleteSelectedEmails() {
+    const ids = [...selectedEmailIds];
+    if (ids.length === 0) return;
+    if (!confirm(`Permanently delete ${ids.length} selected email${ids.length === 1 ? '' : 's'}?`)) return;
+
+    await fetch('/.netlify/functions/update-cfisd-email', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids }),
+    });
+    setEmails((all) => all.filter((e) => !selectedEmailIds.has(e.id)));
+    setSelectedEmailIds(new Set());
   }
 
   // "Checked" is displayed to the user as "Viewed", but the underlying
@@ -658,6 +690,11 @@ export default function App() {
             <button className="toolbar-btn" onClick={emailEmails}>
               Email
             </button>
+            {selectedEmailIds.size > 0 && (
+              <button className="toolbar-btn danger" onClick={deleteSelectedEmails}>
+                Delete selected ({selectedEmailIds.size})
+              </button>
+            )}
           </div>
         </div>
 
@@ -667,6 +704,17 @@ export default function App() {
           <table className="cfisd-table">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={
+                      filteredSortedEmails.length > 0 &&
+                      filteredSortedEmails.every((e) => selectedEmailIds.has(e.id))
+                    }
+                    onChange={toggleSelectAllVisible}
+                    title="Select all visible"
+                  />
+                </th>
                 <th onClick={() => toggleSort('category')} className="sortable">
                   Category{sortArrow('category')}
                 </th>
@@ -699,6 +747,13 @@ export default function App() {
                       setExpandedEmailId(expandedEmailId === email.id ? null : email.id)
                     }
                   >
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedEmailIds.has(email.id)}
+                        onChange={() => toggleEmailSelected(email.id)}
+                      />
+                    </td>
                     <td>
                       <span className="category-pill">{email.category || 'Uncategorized'}</span>
                     </td>
@@ -742,7 +797,7 @@ export default function App() {
                   </tr>
                   {expandedEmailId === email.id && (
                     <tr className="cfisd-body-row">
-                      <td colSpan={8}>{email.body || 'No body content.'}</td>
+                      <td colSpan={9}>{email.body || 'No body content.'}</td>
                     </tr>
                   )}
                 </>
