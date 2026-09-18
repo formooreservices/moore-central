@@ -57,6 +57,16 @@ export default function App() {
   // Task archive view state
   const [viewArchived, setViewArchived] = useState(false);
 
+  // Known Google calendars, fetched once for the "add to calendar" picker.
+  const [calendars, setCalendars] = useState([{ label: 'Household', calendarId: 'primary' }]);
+
+  // "Add to calendar" modal state — set when a Calendar Item checkbox is
+  // checked; cleared on cancel or after the event is created.
+  const [calendarModalEmail, setCalendarModalEmail] = useState(null);
+  const [modalCalendarId, setModalCalendarId] = useState('');
+  const [modalDate, setModalDate] = useState('');
+  const [modalTime, setModalTime] = useState('');
+
   // Email table filter/sort state
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [searchText, setSearchText] = useState('');
@@ -122,6 +132,18 @@ export default function App() {
     loadTasks(viewArchived);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewArchived]);
+
+  // Load the configured calendars once, for the "add to calendar" dropdown.
+  useEffect(() => {
+    fetch('/.netlify/functions/list-calendars')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.calendars?.length) setCalendars(data.calendars);
+      })
+      .catch(() => {
+        // Falls back to the default "Household: primary" already in state.
+      });
+  }, []);
 
   // ---------- Calendar / Events ----------
 
@@ -218,6 +240,17 @@ export default function App() {
     setEditingTaskId(null);
   }
 
+  // Jumps to and expands the CFISD email a task was created from.
+  function jumpToEmail(emailId) {
+    setExpandedEmailId(emailId);
+    // Give the row a moment to render/expand before scrolling to it.
+    setTimeout(() => {
+      document
+        .getElementById(`email-row-${emailId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  }
+
   // ---------- CFISD Emails ----------
 
   async function updateEmailField(email, field, value) {
@@ -229,24 +262,58 @@ export default function App() {
     setEmails((all) => all.map((e) => (e.id === email.id ? data.email : e)));
   }
 
-  async function handleCalendarItemToggle(email, checked) {
+  // "Checked" is displayed to the user as "Viewed", but the underlying
+  // Supabase column is still named `checked` for now (renaming the column
+  // is a separate migration — revisit if this sticks around long-term).
+  async function handleViewedToggle(email, value) {
+    await updateEmailField(email, 'checked', value);
+  }
+
+  // Checking "Action Item" creates a linked task in the Task list, titled
+  // after the email's subject, so it shows up alongside manual tasks.
+  async function handleActionItemToggle(email, checked) {
+    await updateEmailField(email, 'action_item', checked);
+
+    if (checked) {
+      try {
+        const res = await fetch('/.netlify/functions/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: email.subject,
+            source: 'email',
+            email_id: email.id,
+          }),
+        });
+        const data = await res.json();
+        if (data.task) setTasks((t) => [...t, data.task]);
+      } catch (err) {
+        // Non-fatal — the email is still marked as an action item even if
+        // the linked task fails to create.
+        console.error('Could not create linked task:', err);
+      }
+    }
+    // Note: unchecking an action item does NOT currently delete or archive
+    // the task that was created from it — that has to be archived/deleted
+    // separately from the Task list for now.
+  }
+
+  // Checking "Calendar Item" opens the "add to calendar" modal instead of
+  // creating the event immediately, so the user can pick which calendar.
+  function handleCalendarItemToggle(email, checked) {
     if (!checked) {
-      // Just unchecking — no event to create, plain update.
       updateEmailField(email, 'calendar_item', false);
       return;
     }
 
-    const defaultDate = email.received_date || new Date().toISOString().slice(0, 10);
-    const dateInput = window.prompt(
-      `Add "${email.subject}" to Google Calendar.\n\nDate (YYYY-MM-DD):`,
-      defaultDate
-    );
-    if (!dateInput) return; // cancelled
+    setCalendarModalEmail(email);
+    setModalCalendarId(calendars[0]?.calendarId || 'primary');
+    setModalDate(email.received_date || new Date().toISOString().slice(0, 10));
+    setModalTime('');
+  }
 
-    const timeInput = window.prompt(
-      'Time (HH:MM, 24-hour) — leave blank for an all-day event:',
-      ''
-    );
+  async function confirmAddToCalendar() {
+    const email = calendarModalEmail;
+    if (!email || !modalDate) return;
 
     try {
       const res = await fetch('/.netlify/functions/create-calendar-event', {
@@ -254,8 +321,9 @@ export default function App() {
         body: JSON.stringify({
           title: email.subject,
           description: email.body || '',
-          date: dateInput.trim(),
-          time: timeInput?.trim() || undefined,
+          date: modalDate,
+          time: modalTime || undefined,
+          calendarId: modalCalendarId,
         }),
       });
       if (!res.ok) {
@@ -264,16 +332,25 @@ export default function App() {
         return;
       }
       await updateEmailField(email, 'calendar_item', true);
+      setCalendarModalEmail(null);
       loadEverything(); // refresh Upcoming events to show the new one
     } catch (err) {
       alert(`Couldn't create the calendar event: ${err.message}`);
     }
   }
 
+  function cancelAddToCalendar() {
+    setCalendarModalEmail(null);
+  }
+
   const categories = useMemo(() => {
     const set = new Set(emails.map((e) => e.category || 'Uncategorized'));
     return ['All', ...CATEGORY_ORDER.filter((c) => set.has(c)), ...[...set].filter((c) => !CATEGORY_ORDER.includes(c))];
   }, [emails]);
+
+  // "X of Y viewed" summary, based on the full loaded email set (not the
+  // currently filtered/sorted view) so it reads as a stable running total.
+  const viewedCount = useMemo(() => emails.filter((e) => e.checked).length, [emails]);
 
   const filteredSortedEmails = useMemo(() => {
     let list = emails;
@@ -440,6 +517,17 @@ export default function App() {
                       onKeyDown={(e) => e.key === 'Enter' && saveEditTask(t)}
                       autoFocus
                     />
+                  ) : t.email_id ? (
+                    // Tasks created from a CFISD email's "Action Item"
+                    // checkbox link back to that email.
+                    <button
+                      type="button"
+                      className="task-title-link"
+                      onClick={() => jumpToEmail(t.email_id)}
+                      title="Open the email this task came from"
+                    >
+                      {t.title}
+                    </button>
                   ) : (
                     <span>{t.title}</span>
                   )}
@@ -493,6 +581,9 @@ export default function App() {
         <div className="emails-header">
           <h2>Emails from CFISD</h2>
           <div className="emails-toolbar">
+            <span className="viewed-summary">
+              {viewedCount} of {emails.length} viewed
+            </span>
             <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
               {categories.map((c) => (
                 <option key={c} value={c}>
@@ -533,7 +624,10 @@ export default function App() {
                 <th onClick={() => toggleSort('subject')} className="sortable">
                   Subject{sortArrow('subject')}
                 </th>
-                <th>Checked</th>
+                {/* Displayed as "Viewed" — the Supabase column is still
+                    named `checked` for now; a real rename is a separate
+                    migration for later. */}
+                <th>Viewed</th>
                 <th>Action Item</th>
                 <th>Calendar Item</th>
               </tr>
@@ -543,6 +637,7 @@ export default function App() {
                 <>
                   <tr
                     key={email.id}
+                    id={`email-row-${email.id}`}
                     className="cfisd-row"
                     onClick={() =>
                       setExpandedEmailId(expandedEmailId === email.id ? null : email.id)
@@ -558,7 +653,7 @@ export default function App() {
                       <input
                         type="checkbox"
                         checked={!!email.checked}
-                        onChange={(e) => updateEmailField(email, 'checked', e.target.checked)}
+                        onChange={(e) => handleViewedToggle(email, e.target.checked)}
                       />
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
@@ -566,7 +661,7 @@ export default function App() {
                         type="checkbox"
                         checked={!!email.action_item}
                         onChange={(e) =>
-                          updateEmailField(email, 'action_item', e.target.checked)
+                          handleActionItemToggle(email, e.target.checked)
                         }
                       />
                     </td>
@@ -591,6 +686,56 @@ export default function App() {
           </table>
         )}
       </section>
+
+      {calendarModalEmail && (
+        <div className="modal-overlay">
+          <div className="modal-box">
+            <h3>Add to calendar</h3>
+            <p className="modal-subject">{calendarModalEmail.subject}</p>
+
+            <label className="modal-field">
+              Calendar
+              <select
+                value={modalCalendarId}
+                onChange={(e) => setModalCalendarId(e.target.value)}
+              >
+                {calendars.map((c) => (
+                  <option key={c.calendarId} value={c.calendarId}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="modal-field">
+              Date
+              <input
+                type="date"
+                value={modalDate}
+                onChange={(e) => setModalDate(e.target.value)}
+              />
+            </label>
+
+            <label className="modal-field">
+              Time (optional — leave blank for an all-day event)
+              <input
+                type="time"
+                value={modalTime}
+                onChange={(e) => setModalTime(e.target.value)}
+              />
+            </label>
+
+            <div className="modal-actions">
+              <button type="button" className="modal-cancel" onClick={cancelAddToCalendar}>
+                Cancel
+              </button>
+              <button type="button" className="modal-confirm" onClick={confirmAddToCalendar}>
+                Add to calendar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

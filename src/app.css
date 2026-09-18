@@ -7,6 +7,7 @@
   --sage-light: #E5EDE3;
   --marigold: #E8871E;
   --line: #E7E1D4;
+  --danger: #C0392B;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; }
@@ -25,6 +26,18 @@ h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 
 section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
 .muted { color: var(--ink-soft); font-size: 14px; }
 .event-list, .task-list { list-style: none; padding: 0; margin: 0; }
+
+/* Search box + "Hide school and work" checkbox above the Upcoming list. */
+.event-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.event-search {
+  flex: 1; min-width: 140px; padding: 6px 10px; border: 1px solid var(--line);
+  border-radius: 8px; font-family: inherit; font-size: 13px;
+}
+.hide-toggle {
+  display: flex; align-items: center; gap: 6px; font-size: 12px;
+  color: var(--ink-soft); white-space: nowrap; cursor: pointer;
+}
+
 .event-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px;
@@ -34,8 +47,23 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 .task-form { display: flex; gap: 8px; margin-bottom: 14px; }
 .task-form input { flex: 1; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; }
 .task-form button { background: var(--sage); color: #fff; border: none; border-radius: 8px; padding: 0 14px; cursor: pointer; }
+
+/* "Task list" heading + "Show archived" toggle, side by side. */
+.task-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.task-list-header h2 { margin: 0; }
+
 .task-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
-.task-list li.done span:first-of-type { text-decoration: line-through; color: var(--ink-soft); }
+.task-list li.done span:first-of-type,
+.task-list li.done .task-title-link { text-decoration: line-through; color: var(--ink-soft); }
+
+/* A task created from a CFISD email's Action Item checkbox, styled like
+   plain task text but clickable — jumps to and expands the source email. */
+.task-title-link {
+  background: none; border: none; padding: 0; margin: 0;
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+}
+.task-title-link:hover { color: var(--sage); text-decoration: underline; }
+
 .assignee { margin-left: auto; font-size: 11px; background: var(--sage-light); color: var(--sage); padding: 2px 8px; border-radius: 10px; }
 .task-date { font-size: 11px; color: var(--ink-soft); margin-left: 8px; white-space: nowrap; }
 .task-edit-input { flex: 1; padding: 4px 8px; border: 1px solid var(--sage); border-radius: 6px; font-family: inherit; font-size: 14px; }
@@ -45,7 +73,6 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 }
 .icon-btn:hover { background: var(--sage-light); color: var(--sage); }
 .icon-btn.danger:hover { background: #FCEAD3; color: var(--danger); }
-
 .emails-section { margin-top: 24px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
 .emails-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
 .emails-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -54,12 +81,15 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
   font-family: inherit; font-size: 13px;
 }
 .email-search { min-width: 200px; }
+
+/* "X of Y viewed" count next to the emails toolbar controls. */
+.viewed-summary { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+
 .toolbar-btn {
   background: var(--sage); color: #fff; border: none; border-radius: 8px;
   padding: 6px 14px; font-size: 13px; cursor: pointer;
 }
 .toolbar-btn:hover { opacity: 0.9; }
-
 .cfisd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cfisd-table th {
   text-align: left; padding: 8px 10px; color: var(--ink-soft);
@@ -80,6 +110,31 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
   background: #FBF7F0; font-size: 13px; color: var(--ink-soft);
   white-space: pre-wrap; line-height: 1.5; padding: 12px 20px;
 }
+
+/* "Add to calendar" modal, shown when a Calendar Item checkbox is checked. */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(43, 58, 46, 0.45);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-box {
+  background: var(--card); border-radius: 14px; padding: 24px;
+  min-width: 320px; max-width: 90vw; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+.modal-box h3 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; margin: 0 0 4px; }
+.modal-box .modal-subject { margin: 0 0 16px; font-weight: 600; font-size: 14px; }
+.modal-field { display: block; margin-bottom: 12px; font-size: 13px; color: var(--ink-soft); }
+.modal-field select,
+.modal-field input {
+  display: block; width: 100%; margin-top: 4px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 8px; font-family: inherit; font-size: 13px; color: var(--ink);
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.modal-actions button {
+  border: none; border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer;
+}
+.modal-actions .modal-cancel { background: var(--sage-light); color: var(--ink); }
+.modal-actions .modal-confirm { background: var(--sage); color: #fff; }
+.modal-actions .modal-confirm:hover { opacity: 0.9; }
 
 @media print {
   header, .connect-row, .notice, .columns, .emails-toolbar { display: none !important; }
