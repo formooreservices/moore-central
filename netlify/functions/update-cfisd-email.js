@@ -58,8 +58,19 @@ export async function handler(event) {
       return { statusCode: 400, body: 'Invalid JSON.' };
     }
 
+    // Supports deleting one row ({ id }) or many at once ({ ids: [...] }).
+    if (Array.isArray(body.ids) && body.ids.length > 0) {
+      const { error } = await supabase.from('cfisd_emails').delete().in('id', body.ids);
+      if (error) return { statusCode: 500, body: error.message };
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ok: true, deleted: body.ids.length }),
+      };
+    }
+
     if (!body.id) {
-      return { statusCode: 400, body: 'Missing "id" field.' };
+      return { statusCode: 400, body: 'Missing "id" or "ids" field.' };
     }
 
     const { error } = await supabase.from('cfisd_emails').delete().eq('id', body.id);
