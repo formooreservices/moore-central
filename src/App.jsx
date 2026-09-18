@@ -66,6 +66,7 @@ export default function App() {
   const [modalCalendarId, setModalCalendarId] = useState('');
   const [modalDate, setModalDate] = useState('');
   const [modalTime, setModalTime] = useState('');
+  const [modalDescription, setModalDescription] = useState('');
 
   // Email table filter/sort state
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -309,6 +310,9 @@ export default function App() {
     setModalCalendarId(calendars[0]?.calendarId || 'primary');
     setModalDate(email.received_date || new Date().toISOString().slice(0, 10));
     setModalTime('');
+    // Pre-fill with the email body as a starting point, but let the user
+    // edit it before it becomes the calendar event's description.
+    setModalDescription(email.body || '');
   }
 
   async function confirmAddToCalendar() {
@@ -320,7 +324,7 @@ export default function App() {
         method: 'POST',
         body: JSON.stringify({
           title: email.subject,
-          description: email.body || '',
+          description: modalDescription,
           date: modalDate,
           time: modalTime || undefined,
           calendarId: modalCalendarId,
@@ -722,6 +726,16 @@ export default function App() {
                 type="time"
                 value={modalTime}
                 onChange={(e) => setModalTime(e.target.value)}
+              />
+            </label>
+
+            <label className="modal-field">
+              Description
+              <textarea
+                rows={4}
+                value={modalDescription}
+                onChange={(e) => setModalDescription(e.target.value)}
+                placeholder="Details for the calendar event…"
               />
             </label>
 

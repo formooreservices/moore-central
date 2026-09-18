@@ -124,10 +124,12 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 .modal-box .modal-subject { margin: 0 0 16px; font-weight: 600; font-size: 14px; }
 .modal-field { display: block; margin-bottom: 12px; font-size: 13px; color: var(--ink-soft); }
 .modal-field select,
-.modal-field input {
+.modal-field input,
+.modal-field textarea {
   display: block; width: 100%; margin-top: 4px; padding: 6px 10px;
   border: 1px solid var(--line); border-radius: 8px; font-family: inherit; font-size: 13px; color: var(--ink);
 }
+.modal-field textarea { resize: vertical; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .modal-actions button {
   border: none; border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer;
