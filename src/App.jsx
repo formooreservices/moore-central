@@ -268,6 +268,15 @@ export default function App() {
     setEmails((all) => all.map((e) => (e.id === email.id ? data.email : e)));
   }
 
+  async function deleteEmail(email) {
+    if (!confirm(`Permanently delete "${email.subject}"?`)) return;
+    await fetch('/.netlify/functions/update-cfisd-email', {
+      method: 'DELETE',
+      body: JSON.stringify({ id: email.id }),
+    });
+    setEmails((all) => all.filter((e) => e.id !== email.id));
+  }
+
   // "Checked" is displayed to the user as "Viewed", but the underlying
   // Supabase column is still named `checked` for now (renaming the column
   // is a separate migration — revisit if this sticks around long-term).
@@ -676,6 +685,7 @@ export default function App() {
                 <th>Viewed</th>
                 <th>Action Item</th>
                 <th>Calendar Item</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -720,10 +730,19 @@ export default function App() {
                         }
                       />
                     </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="icon-btn danger"
+                        onClick={() => deleteEmail(email)}
+                        title="Delete permanently"
+                      >
+                        ✕
+                      </button>
+                    </td>
                   </tr>
                   {expandedEmailId === email.id && (
                     <tr className="cfisd-body-row">
-                      <td colSpan={7}>{email.body || 'No body content.'}</td>
+                      <td colSpan={8}>{email.body || 'No body content.'}</td>
                     </tr>
                   )}
                 </>
