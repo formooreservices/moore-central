@@ -30,13 +30,14 @@ function formatDateTime(dateStr) {
 const CATEGORY_ORDER = ['Truitt', 'CyFalls', 'Sports', 'School', 'Uncategorized'];
 
 // Labels (matched against the event's calendar name or title, case-insensitive)
-// that should be hidden when "Hide school and work" is checked.
+// that should be hidden when the "Hide: School, Work, Brandon" toggle is checked.
 const SCHOOL_WORK_LABELS = [
   "mommy's work",
   'dennis - school day',
   'christopher - school',
   'school',
   'work',
+  'brandon',
 ];
 
 export default function App() {
@@ -61,6 +62,11 @@ export default function App() {
   // Known Google calendars, fetched once for the "add to calendar" picker.
   const [calendars, setCalendars] = useState([{ label: 'Household', calendarId: 'primary' }]);
 
+  // School absence tracking
+  const [absences, setAbsences] = useState([]);
+  const [newAbsenceChild, setNewAbsenceChild] = useState('Dennis');
+  const [newAbsenceDate, setNewAbsenceDate] = useState('');
+
   // "Add to calendar" modal state — set when a Calendar Item checkbox is
   // checked; cleared on cancel or after the event is created.
   const [calendarModalEmail, setCalendarModalEmail] = useState(null);
@@ -73,7 +79,9 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState('All');
   // 'all' | 'viewed' | 'unviewed' — mirrors the Task list's "Show archived"
   // pattern: a simple dropdown that swaps which subset of emails is shown.
-  const [viewedFilter, setViewedFilter] = useState('all');
+  // Defaults to hiding viewed emails, same as tasks default to hiding
+  // archived ones — switch the dropdown to "All Emails" to see everything.
+  const [viewedFilter, setViewedFilter] = useState('unviewed');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [searchText, setSearchText] = useState('');
@@ -151,6 +159,57 @@ export default function App() {
         // Falls back to the default "Household: primary" already in state.
       });
   }, []);
+
+  // Load school absences once on mount.
+  useEffect(() => {
+    fetch('/.netlify/functions/school-absences')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.absences) setAbsences(data.absences);
+      })
+      .catch(() => {});
+  }, []);
+
+  // ---------- School Absences ----------
+
+  async function addAbsence(e) {
+    e.preventDefault();
+    if (!newAbsenceDate) return;
+    const res = await fetch('/.netlify/functions/school-absences', {
+      method: 'POST',
+      body: JSON.stringify({ child: newAbsenceChild, absence_date: newAbsenceDate }),
+    });
+    const data = await res.json();
+    if (data.absence) setAbsences((a) => [data.absence, ...a]);
+    setNewAbsenceDate('');
+  }
+
+  async function toggleNoteSent(absence) {
+    const res = await fetch('/.netlify/functions/school-absences', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: absence.id, note_sent: !absence.note_sent }),
+    });
+    const data = await res.json();
+    setAbsences((a) => a.map((x) => (x.id === absence.id ? data.absence : x)));
+  }
+
+  async function deleteAbsence(absence) {
+    if (!confirm(`Delete the ${absence.child} absence on ${formatDate(absence.absence_date)}?`)) return;
+    await fetch('/.netlify/functions/school-absences', {
+      method: 'DELETE',
+      body: JSON.stringify({ id: absence.id }),
+    });
+    setAbsences((a) => a.filter((x) => x.id !== absence.id));
+  }
+
+  // An excuse note is due within 3 days of the absence. "Overdue" means
+  // that window has passed and the note still isn't marked as sent.
+  function isNoteOverdue(absence) {
+    if (absence.note_sent) return false;
+    const due = new Date(absence.absence_date);
+    due.setDate(due.getDate() + 3);
+    return new Date() > due;
+  }
 
   // ---------- Calendar / Events ----------
 
@@ -515,7 +574,7 @@ export default function App() {
                 checked={hideSchoolWork}
                 onChange={(e) => setHideSchoolWork(e.target.checked)}
               />
-              Hide school and work
+              Hide: School, Work, Brandon
             </label>
           </div>
           {loading ? (
@@ -640,6 +699,52 @@ export default function App() {
           )}
         </section>
       </div>
+
+      <section className="absences-section">
+        <h2>School Absences</h2>
+        <form onSubmit={addAbsence} className="absence-form">
+          <select value={newAbsenceChild} onChange={(e) => setNewAbsenceChild(e.target.value)}>
+            <option value="Dennis">Dennis</option>
+            <option value="Christopher">Christopher</option>
+          </select>
+          <input
+            type="date"
+            value={newAbsenceDate}
+            onChange={(e) => setNewAbsenceDate(e.target.value)}
+            required
+          />
+          <button type="submit">Add absence</button>
+        </form>
+
+        {absences.length === 0 ? (
+          <p className="muted">No absences logged.</p>
+        ) : (
+          <ul className="absence-list">
+            {absences.map((a) => (
+              <li key={a.id} className={isNoteOverdue(a) ? 'overdue' : ''}>
+                <span className="absence-child">{a.child}</span>
+                <span className="absence-date">{formatDate(a.absence_date)}</span>
+                <label className="absence-note-toggle">
+                  <input
+                    type="checkbox"
+                    checked={!!a.note_sent}
+                    onChange={() => toggleNoteSent(a)}
+                  />
+                  Excuse note sent
+                </label>
+                {isNoteOverdue(a) && <span className="overdue-badge">Overdue</span>}
+                <button
+                  className="icon-btn danger"
+                  onClick={() => deleteAbsence(a)}
+                  title="Delete"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="emails-section">
         <div className="emails-header">

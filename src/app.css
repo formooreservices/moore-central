@@ -148,3 +148,34 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
   .emails-section { border: none; padding: 0; }
 }
 .section-sub { font-size: 14px; margin: 18px 0 10px; color: var(--ink-soft); border-top: 1px solid var(--line); padding-top: 14px; }
+
+/* School Absences section, sitting between the task/calendar columns and
+   the CFISD emails table. */
+.absences-section {
+  margin-top: 24px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 18px 20px;
+}
+.absence-form { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.absence-form select,
+.absence-form input {
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+  font-family: inherit; font-size: 13px;
+}
+.absence-form button {
+  background: var(--sage); color: #fff; border: none; border-radius: 8px;
+  padding: 6px 14px; font-size: 13px; cursor: pointer;
+}
+.absence-list { list-style: none; padding: 0; margin: 0; }
+.absence-list li {
+  display: flex; align-items: center; gap: 14px; padding: 10px 0;
+  border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.absence-list li:last-child { border-bottom: none; }
+.absence-child { font-weight: 600; min-width: 90px; }
+.absence-date { color: var(--ink-soft); min-width: 70px; }
+.absence-note-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); }
+.absence-list li.overdue { background: #FCEAD3; border-radius: 8px; padding-left: 10px; }
+.overdue-badge {
+  background: var(--danger); color: #fff; font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 10px; margin-left: auto;
+}
