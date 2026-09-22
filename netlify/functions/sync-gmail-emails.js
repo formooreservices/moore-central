@@ -96,6 +96,22 @@ function getHeader(headers, name) {
   return headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
 }
 
+// For a message that was manually forwarded (as opposed to auto-forwarded
+// at the mail-server level), Gmail's own "From:" header only shows the
+// person who clicked Forward — the real original sender only exists as
+// quoted text inside the body, in the block Outlook/Gmail insert above a
+// forwarded message, e.g.:
+//   From: Christopher Brister <Christopher.brister@cfisd.net>
+//   Sent: Wednesday, September 17, 2026 10:15 AM
+//   ...
+// This pulls that address back out so we can use the real sender instead
+// of the forwarder's address.
+function extractForwardedSender(bodyText) {
+  if (!bodyText) return null;
+  const match = bodyText.match(/^From:\s*(?:.*?<([^>]+)>|([^\s<]+@[^\s<]+))/im);
+  return match ? (match[1] || match[2]) : null;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -177,6 +193,7 @@ export async function handler() {
 
   let inserted = 0;
   let skipped = 0;
+  let skippedNonCfisd = 0;
   const errors = [];
   let newestSuccessful = storedCursor ? new Date(storedCursor) : new Date(0);
   let oldestErrored = null;
@@ -198,10 +215,28 @@ export async function handler() {
 
     const headers = msg.payload?.headers;
     const subject = getHeader(headers, 'Subject') || '(no subject)';
-    const from = getHeader(headers, 'From');
+    const visibleFrom = getHeader(headers, 'From');
     const emailBody = extractPlainTextBody(msg.payload) || msg.snippet || '';
-
     const internalDate = new Date(Number(msg.internalDate));
+
+    // If the visible sender isn't already CFISD, this might be a manual
+    // forward — try to recover the real original sender from the quoted
+    // header block inside the body. If we can't find a cfisd.net address
+    // anywhere (visible or embedded), this almost certainly isn't a school
+    // email, so skip it rather than storing noise. It still counts toward
+    // cursor progress, since we did successfully check it.
+    let from = visibleFrom;
+    if (!from.toLowerCase().includes('cfisd.net')) {
+      const embedded = extractForwardedSender(emailBody);
+      if (embedded && embedded.toLowerCase().includes('cfisd.net')) {
+        from = embedded;
+      } else {
+        skippedNonCfisd++;
+        if (internalDate > newestSuccessful) newestSuccessful = internalDate;
+        continue;
+      }
+    }
+
     const receivedDate = internalDate.toISOString().slice(0, 10);
     const category = guessCategory(`${subject} ${from} ${emailBody}`);
 
@@ -266,6 +301,7 @@ export async function handler() {
       checked: messageRefs.length,
       inserted,
       skipped,
+      skippedNonCfisd,
       errors,
       cursorAdvancedTo: newCursor ? newCursor.toISOString() : '(unchanged)',
     }),
