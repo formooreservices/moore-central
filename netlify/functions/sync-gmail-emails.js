@@ -30,7 +30,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { guessCategory } from './lib/categorize-email.js';
 
-const MAX_PAGES = 5; // 5 pages x 50 = up to 250 messages checked per run
+const MAX_PAGES = 1; // 1 page = up to 50 messages checked per run.
+// Kept intentionally small: with the per-message delay below (needed to
+// avoid Gmail's burst rate limit) plus Netlify's own function execution
+// time limit, a single run can't safely process hundreds of messages.
+// Any backlog beyond 50 just gets picked up on the next run automatically
+// via the stored cursor — nothing is lost, it just takes a few runs to
+// fully catch up after a long gap. Steady-state (checking for new mail
+// since the last run) is comfortably under 50 messages either way.
 
 async function getAccessToken({ GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, supabase }) {
   const { data: tokenRow, error } = await supabase
@@ -87,6 +94,10 @@ function decodeBase64Url(data) {
 
 function getHeader(headers, name) {
   return headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function getStoredCursor(supabase) {
@@ -167,7 +178,8 @@ export async function handler() {
   let inserted = 0;
   let skipped = 0;
   const errors = [];
-  let newestSeen = storedCursor ? new Date(storedCursor) : new Date(0);
+  let newestSuccessful = storedCursor ? new Date(storedCursor) : new Date(0);
+  let oldestErrored = null;
 
   for (const ref of messageRefs) {
     const msgRes = await fetch(
@@ -178,6 +190,9 @@ export async function handler() {
 
     if (!msgRes.ok) {
       errors.push(`Message ${ref.id}: ${msg.error?.message}`);
+      // We don't know this message's date since the fetch itself failed,
+      // so we can't factor it into oldestErrored — the 1-day overlap
+      // buffer on the next run's cursor is what catches it instead.
       continue;
     }
 
@@ -187,8 +202,6 @@ export async function handler() {
     const emailBody = extractPlainTextBody(msg.payload) || msg.snippet || '';
 
     const internalDate = new Date(Number(msg.internalDate));
-    if (internalDate > newestSeen) newestSeen = internalDate;
-
     const receivedDate = internalDate.toISOString().slice(0, 10);
     const category = guessCategory(`${subject} ${from} ${emailBody}`);
 
@@ -203,22 +216,45 @@ export async function handler() {
 
     if (insertError) {
       // Unique violation on gmail_message_id means we already synced this
-      // one — expected on overlapping queries, not a real error.
+      // one — expected on overlapping queries, not a real error. It still
+      // counts as "successfully accounted for" for cursor purposes.
       if (insertError.code === '23505') {
         skipped++;
+        if (internalDate > newestSuccessful) newestSuccessful = internalDate;
       } else {
         errors.push(`Message ${ref.id}: ${insertError.message}`);
+        if (!oldestErrored || internalDate < oldestErrored) oldestErrored = internalDate;
       }
     } else {
       inserted++;
+      if (internalDate > newestSuccessful) newestSuccessful = internalDate;
+    }
+
+    // Small pause between messages — fetching many messages back-to-back
+    // with no delay is what triggers Gmail's per-minute burst limit, even
+    // though the actual daily quota usage is nowhere close to the cap.
+    await sleep(150);
+  }
+
+  // Advance the cursor as far as we safely can:
+  //  - No errors at all -> advance to the newest message processed.
+  //  - Some errors -> advance only up to just before the oldest failed
+  //    message, so it's guaranteed to be re-checked on the next run
+  //    instead of being silently skipped forever.
+  //  - Nothing processed -> leave the cursor untouched.
+  let newCursor = null;
+  if (messageRefs.length > 0) {
+    if (errors.length === 0) {
+      newCursor = newestSuccessful;
+    } else if (oldestErrored) {
+      const safeCursor = new Date(oldestErrored.getTime() - 1000);
+      const currentCursor = storedCursor ? new Date(storedCursor) : new Date(0);
+      if (safeCursor > currentCursor) newCursor = safeCursor;
     }
   }
 
-  // Only advance the cursor if nothing went wrong — if there were errors,
-  // leave it where it was so the next run retries the same window rather
-  // than silently skipping past a message that failed to insert.
-  if (errors.length === 0 && messageRefs.length > 0) {
-    await setStoredCursor(supabase, newestSeen.toISOString());
+  if (newCursor) {
+    await setStoredCursor(supabase, newCursor.toISOString());
   }
 
   return {
@@ -231,7 +267,7 @@ export async function handler() {
       inserted,
       skipped,
       errors,
-      cursorAdvancedTo: errors.length === 0 ? newestSeen.toISOString() : '(unchanged due to errors)',
+      cursorAdvancedTo: newCursor ? newCursor.toISOString() : '(unchanged)',
     }),
   };
 }
