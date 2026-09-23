@@ -6,6 +6,7 @@
   --sage: #5C7A5E;
   --sage-light: #E5EDE3;
   --marigold: #E8871E;
+  --marigold-light: #FCEAD3;
   --line: #E7E1D4;
   --danger: #C0392B;
 }
@@ -107,9 +108,14 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 .cfisd-row { cursor: pointer; }
 .cfisd-row:hover { background: var(--sage-light); }
 .cfisd-table .truncate { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.category-pill {
+.category-pill,
+.category-select {
   font-size: 11px; background: var(--marigold-light); color: #854F0B;
   padding: 2px 10px; border-radius: 12px; white-space: nowrap;
+}
+.category-select {
+  border: none; font-family: inherit; cursor: pointer; appearance: none;
+  padding-right: 18px;
 }
 .cfisd-body-row td {
   background: #FBF7F0; font-size: 13px; color: var(--ink-soft);

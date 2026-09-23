@@ -75,6 +75,7 @@ export default function App() {
   const [modalDate, setModalDate] = useState('');
   const [modalTime, setModalTime] = useState('');
   const [modalDescription, setModalDescription] = useState('');
+  const [modalTitle, setModalTitle] = useState('');
 
   // Email table filter/sort state
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -439,8 +440,9 @@ export default function App() {
     setModalCalendarId(calendars[0]?.calendarId || 'primary');
     setModalDate(email.received_date || new Date().toISOString().slice(0, 10));
     setModalTime('');
-    // Pre-fill with the email body as a starting point, but let the user
-    // edit it before it becomes the calendar event's description.
+    // Pre-fill with the email subject/body as a starting point, but let
+    // the user edit both before they become the calendar event.
+    setModalTitle(email.subject || '');
     setModalDescription(email.body || '');
   }
 
@@ -452,7 +454,7 @@ export default function App() {
       const res = await fetch('/.netlify/functions/create-calendar-event', {
         method: 'POST',
         body: JSON.stringify({
-          title: email.subject,
+          title: modalTitle || email.subject,
           description: modalDescription,
           date: modalDate,
           time: modalTime || undefined,
@@ -886,8 +888,20 @@ export default function App() {
                         onChange={() => toggleEmailSelected(email.id)}
                       />
                     </td>
-                    <td>
-                      <span className="category-pill">{email.category || 'Uncategorized'}</span>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <select
+                        className="category-select"
+                        value={email.category || 'Uncategorized'}
+                        onChange={(e) => updateEmailField(email, 'category', e.target.value)}
+                      >
+                        {categories
+                          .filter((c) => c !== 'All')
+                          .map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                      </select>
                     </td>
                     <td>{formatDate(email.received_date)}</td>
                     <td className="truncate">{email.sender || 'Unknown sender'}</td>
@@ -943,7 +957,15 @@ export default function App() {
         <div className="modal-overlay">
           <div className="modal-box">
             <h3>Add to calendar</h3>
-            <p className="modal-subject">{calendarModalEmail.subject}</p>
+
+            <label className="modal-field">
+              Title
+              <input
+                type="text"
+                value={modalTitle}
+                onChange={(e) => setModalTitle(e.target.value)}
+              />
+            </label>
 
             <label className="modal-field">
               Calendar
