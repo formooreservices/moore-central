@@ -64,6 +64,7 @@ export default function App() {
 
   // School absence tracking
   const [absences, setAbsences] = useState([]);
+  const [syncingGmail, setSyncingGmail] = useState(false);
   const [newAbsenceChild, setNewAbsenceChild] = useState('Dennis');
   const [newAbsenceDate, setNewAbsenceDate] = useState('');
 
@@ -366,6 +367,29 @@ export default function App() {
     });
     setEmails((all) => all.filter((e) => !selectedEmailIds.has(e.id)));
     setSelectedEmailIds(new Set());
+  }
+
+  // Manually checks Gmail for anything newer than the last sync, instead
+  // of waiting for the hourly automatic run.
+  async function syncGmailNow() {
+    setSyncingGmail(true);
+    try {
+      const res = await fetch('/.netlify/functions/poll-gmail-emails');
+      const data = await res.json();
+      alert(
+        `Checked ${data.checked ?? 0} email(s): ${data.inserted ?? 0} new, ` +
+          `${data.skipped ?? 0} already synced, ${data.skippedNonCfisd ?? 0} not CFISD` +
+          (data.errors?.length ? `, ${data.errors.length} error(s)` : '')
+      );
+      if (data.inserted > 0) {
+        const refreshed = await fetch('/.netlify/functions/get-cfisd-emails').then((r) => r.json());
+        if (refreshed.emails) setEmails(refreshed.emails);
+      }
+    } catch (err) {
+      alert(`Sync failed: ${err.message}`);
+    } finally {
+      setSyncingGmail(false);
+    }
   }
 
   // "Checked" is displayed to the user as "Viewed", but the underlying
@@ -750,6 +774,9 @@ export default function App() {
         <div className="emails-header">
           <h2>Emails from CFISD</h2>
           <div className="emails-toolbar">
+            <button className="toolbar-btn" onClick={syncGmailNow} disabled={syncingGmail}>
+              {syncingGmail ? 'Syncing…' : 'Sync now'}
+            </button>
             <span className="viewed-summary">
               {viewedCount} of {emails.length} viewed
             </span>
