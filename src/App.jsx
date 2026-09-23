@@ -586,7 +586,12 @@ export default function App() {
 
       <div className="columns">
         <section>
-          <h2>Upcoming</h2>
+          <div className="task-list-header">
+            <h2>Upcoming</h2>
+            <button className="icon-btn" onClick={loadEverything} disabled={loading} title="Refresh calendar">
+              {loading ? 'Syncing…' : '↻ Sync now'}
+            </button>
+          </div>
           <div className="event-toolbar">
             <input
               className="event-search"
