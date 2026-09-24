@@ -40,18 +40,29 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 }
 
 .event-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px;
+  display: flex; flex-direction: column; border-bottom: 1px solid var(--line); font-size: 14px;
 }
 .event-row:last-child { border-bottom: none; }
+.event-row-main {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; cursor: pointer;
+}
+.event-details {
+  padding: 0 0 12px; font-size: 13px; color: var(--ink-soft); line-height: 1.5;
+}
+.event-details p { margin: 4px 0; }
+.event-details a { color: var(--sage); font-size: 12px; }
+.event-location { font-size: 12px; }
 .event-source { font-size: 11px; color: var(--ink-soft); text-transform: uppercase; }
 .task-form { display: flex; gap: 8px; margin-bottom: 14px; }
 .task-form input { flex: 1; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; }
 .task-form button { background: var(--sage); color: #fff; border: none; border-radius: 8px; padding: 0 14px; cursor: pointer; }
 
-/* "Task list" heading + "Show archived" toggle, side by side. */
+/* "Task list"/"Upcoming" heading + right-aligned action button(s). */
 .task-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .task-list-header h2 { margin: 0; }
+.header-actions { display: flex; gap: 6px; align-items: center; }
+.header-actions .icon-btn { text-decoration: none; white-space: nowrap; }
 
 .task-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .task-list li.done span:first-of-type,
@@ -97,6 +108,7 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 .toolbar-btn:hover { opacity: 0.9; }
 .toolbar-btn.danger { background: var(--danger); }
 .cfisd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-scroll { overflow-x: auto; }
 .cfisd-table th {
   text-align: left; padding: 8px 10px; color: var(--ink-soft);
   font-weight: 600; font-size: 12px; text-transform: uppercase;
@@ -110,8 +122,8 @@ section { background: var(--card); border: 1px solid var(--line); border-radius:
 .cfisd-table .truncate { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .category-pill,
 .category-select {
-  font-size: 11px; background: var(--marigold-light); color: #854F0B;
-  padding: 2px 10px; border-radius: 12px; white-space: nowrap;
+  font-size: 11px; color: #854F0B; font-weight: 600;
+  padding: 2px 4px; white-space: nowrap; background: none;
 }
 .category-select {
   border: none; font-family: inherit; cursor: pointer; appearance: none;

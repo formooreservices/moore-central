@@ -45,6 +45,7 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [emails, setEmails] = useState([]);
   const [expandedEmailId, setExpandedEmailId] = useState(null);
+  const [expandedEventId, setExpandedEventId] = useState(null);
   const [selectedEmailIds, setSelectedEmailIds] = useState(new Set());
   const [newTask, setNewTask] = useState('');
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -54,7 +55,7 @@ export default function App() {
 
   // Calendar/events filter state
   const [eventSearchText, setEventSearchText] = useState('');
-  const [hideSchoolWork, setHideSchoolWork] = useState(false);
+  const [hideSchoolWork, setHideSchoolWork] = useState(true);
 
   // Task archive view state
   const [viewArchived, setViewArchived] = useState(false);
@@ -588,9 +589,20 @@ export default function App() {
         <section>
           <div className="task-list-header">
             <h2>Upcoming</h2>
-            <button className="icon-btn" onClick={loadEverything} disabled={loading} title="Refresh calendar">
-              {loading ? 'Syncing…' : '↻ Sync now'}
-            </button>
+            <div className="header-actions">
+              <a
+                className="icon-btn"
+                href="https://calendar.google.com/calendar/"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open Google Calendar in a new tab"
+              >
+                ↗ Open Calendar
+              </a>
+              <button className="icon-btn" onClick={loadEverything} disabled={loading} title="Refresh calendar">
+                {loading ? 'Syncing…' : '↻ Sync now'}
+              </button>
+            </div>
           </div>
           <div className="event-toolbar">
             <input
@@ -616,9 +628,28 @@ export default function App() {
             <ul className="event-list">
               {filteredEvents.map((e) => (
                 <li key={e.id} className={`event-row ${e.source}`}>
-                  <span className="event-title">{e.title || 'Untitled event'}</span>
-                  <span className="event-time">{formatTime(e.start)}</span>
-                  <span className="event-source">{e.calendar || e.source}</span>
+                  <div
+                    className="event-row-main"
+                    onClick={() => setExpandedEventId(expandedEventId === e.id ? null : e.id)}
+                  >
+                    <span className="event-title">{e.title || 'Untitled event'}</span>
+                    <span className="event-time">{formatTime(e.start)}</span>
+                    <span className="event-source">{e.calendar || e.source}</span>
+                  </div>
+                  {expandedEventId === e.id && (
+                    <div className="event-details">
+                      {e.description && <p>{e.description}</p>}
+                      {e.location && <p className="event-location">📍 {e.location}</p>}
+                      {!e.description && !e.location && (
+                        <p className="muted">No additional details for this event.</p>
+                      )}
+                      {e.htmlLink && (
+                        <a href={e.htmlLink} target="_blank" rel="noopener noreferrer">
+                          View in Google Calendar ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -840,7 +871,8 @@ export default function App() {
         {filteredSortedEmails.length === 0 ? (
           <p className="muted">No CFISD emails match.</p>
         ) : (
-          <table className="cfisd-table">
+          <div className="table-scroll">
+            <table className="cfisd-table">
             <thead>
               <tr>
                 <th>
@@ -955,6 +987,7 @@ export default function App() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
