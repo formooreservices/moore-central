@@ -16,9 +16,13 @@
 //
 // Configure in Netlify env vars:
 //   GMAIL_SYNC_SENDER_FILTER (optional) — narrows which mail counts as
-//     CFISD mail, e.g. 'from:cfisd.net'. Strongly recommended — without
-//     it, every email in the inbox gets pulled in (newsletters, receipts,
-//     etc.).
+//     school mail at the Gmail search level, e.g.
+//     'from:cfisd.net OR from:parentsquare.com OR from:schoolcafe.com'.
+//     Strongly recommended — without it, every email in the inbox gets
+//     pulled in (newsletters, receipts, etc.). Separately, the
+//     SCHOOL_DOMAINS list further down this file is the actual source of
+//     truth for which domains count as "school mail" once messages are
+//     fetched — keep the two in sync when adding a new domain.
 //   GMAIL_SYNC_QUERY_INITIAL (optional) — how far back the very first run
 //     (before any cursor exists) should look. Defaults to "newer_than:30d".
 //     Only matters once; after the first successful run, the stored
@@ -107,6 +111,17 @@ function extractForwardedSender(bodyText) {
   if (!bodyText) return null;
   const match = bodyText.match(/^From:\s*(?:.*?<([^>]+)>|([^\s<]+@[^\s<]+))/im);
   return match ? (match[1] || match[2]) : null;
+}
+
+// Domains treated as legitimate "school mail" — used both to decide
+// whether a manually-forwarded message is worth keeping, and to explain
+// what GMAIL_SYNC_SENDER_FILTER should include. Add more here as needed.
+const SCHOOL_DOMAINS = ['cfisd.net', 'parentsquare.com', 'schoolcafe.com'];
+
+function isSchoolDomain(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return SCHOOL_DOMAINS.some((domain) => lower.includes(domain));
 }
 
 function sleep(ms) {
@@ -216,16 +231,16 @@ export async function runGmailSync() {
     const emailBody = extractPlainTextBody(msg.payload) || msg.snippet || '';
     const internalDate = new Date(Number(msg.internalDate));
 
-    // If the visible sender isn't already CFISD, this might be a manual
-    // forward — try to recover the real original sender from the quoted
-    // header block inside the body. If we can't find a cfisd.net address
-    // anywhere (visible or embedded), this almost certainly isn't a school
-    // email, so skip it rather than storing noise. It still counts toward
-    // cursor progress, since we did successfully check it.
+    // If the visible sender isn't already a recognized school domain, this
+    // might be a manual forward — try to recover the real original sender
+    // from the quoted header block inside the body. If we can't find a
+    // school-domain address anywhere (visible or embedded), this almost
+    // certainly isn't school mail, so skip it rather than storing noise.
+    // It still counts toward cursor progress, since we did check it.
     let from = visibleFrom;
-    if (!from.toLowerCase().includes('cfisd.net')) {
+    if (!isSchoolDomain(from)) {
       const embedded = extractForwardedSender(emailBody);
-      if (embedded && embedded.toLowerCase().includes('cfisd.net')) {
+      if (isSchoolDomain(embedded)) {
         from = embedded;
       } else {
         skippedNonCfisd++;
